@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:name=".SandboxApplication"
+        android:label="AI QA Sandbox"
+        android:theme="@android:style/Theme.Material.NoActionBar"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Classic View-based screen. Plain android.app.Activity on a
+             framework theme: it must not inherit a Compose-oriented theme.
+             The theme only mirrors the app palette (owner decision 2026-07-08). -->
+        <activity
+            android:name=".ui.DriverSignupActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Sandbox.DriverSignup" />
+
+        <!-- Condition control from adb, see README.md for broadcast examples -->
+        <receiver
+            android:name=".condition.ConditionReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.sandbox.qa.SET_CONDITION" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+
+</manifest>

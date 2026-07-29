@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- XML-layer mirror of the Compose palette in ui/Theme.kt (SandboxColors).
+     The classic View screen (DriverSignupActivity) cannot read the Compose
+     theme, so the shared values are duplicated here; keep both in sync. -->
+<resources>
+    <color name="sandbox_background">#FF141414</color>
+    <color name="sandbox_on_background">#FFFFFFFF</color>
+    <color name="sandbox_text_secondary">#FFB8B8B8</color>
+    <color name="sandbox_lime">#FFC9F73A</color>
+    <color name="sandbox_on_lime">#FF000000</color>
+    <color name="sandbox_error">#FFFF6B6B</color>
+    <color name="sandbox_success">#FF6FCF97</color>
+</resources>

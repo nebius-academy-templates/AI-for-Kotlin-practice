@@ -1,0 +1,15 @@
+# Paths an AI agent must not modify unless the human explicitly requests an
+# in-scope change. Directories end with "/"; single files are exact paths.
+
+# The application under test must not be changed to make a test green.
+app/
+
+# CI must not be weakened to hide a failing check.
+.github/workflows/
+
+# These session safeguards prevent tests from silently using the wrong APK.
+appium-tests/src/test/kotlin/rule/DriverFactory.kt
+
+# Every participant uses the same Appium toolchain.
+package.json
+package-lock.json

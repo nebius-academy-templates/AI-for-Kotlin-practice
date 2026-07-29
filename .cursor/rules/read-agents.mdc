@@ -1,0 +1,8 @@
+---
+description: Single source of agent rules for this repository
+alwaysApply: true
+---
+
+Read and follow `AGENTS.md` at the repository root. It is the single source
+of agent rules for this project (shared with Claude Code, Codex and other
+agents); do not duplicate its content here.

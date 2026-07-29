@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="driver_signup_back">Back</string>
+    <string name="driver_signup_title">Become a driver</string>
+    <string name="driver_signup_name_hint">Full name</string>
+    <string name="driver_signup_car_hint">Car plate number</string>
+    <string name="driver_signup_submit">Submit application</string>
+    <string name="driver_signup_error">Fill in all fields</string>
+    <string name="driver_signup_success">Application submitted</string>
+</resources>
