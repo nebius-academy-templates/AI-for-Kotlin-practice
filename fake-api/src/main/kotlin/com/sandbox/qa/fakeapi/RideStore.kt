@@ -8,6 +8,7 @@ class RideStore {
     private val nextRideId = AtomicInteger(100)
     private val nextOrderId = AtomicInteger(4)
     private val activeRides = ConcurrentHashMap<Int, ActiveRide>()
+    private var activeRideId: Int? = null
 
     @Volatile
     private var orders: List<Order> = SeedData.orders
@@ -15,11 +16,17 @@ class RideStore {
     fun orders(): List<Order> = orders
 
     @Synchronized
+    fun active(): ActiveRide? = activeRideId?.let(activeRides::get)
+
+    @Synchronized
     fun create(
         from: String,
         to: String,
         option: RideOption,
-    ): ActiveRide {
+    ): ActiveRide? {
+        if (activeRideId != null) {
+            return null
+        }
         val ride =
             ActiveRide(
                 id = nextRideId.getAndIncrement(),
@@ -30,14 +37,16 @@ class RideStore {
                 driver = SeedData.driver,
             )
         activeRides[ride.id] = ride
+        activeRideId = ride.id
         return ride
     }
 
     @Synchronized
     fun complete(id: Int): RideCompletionResponse? {
-        val current = activeRides[id]?.takeIf { it.status == DRIVER_FOUND } ?: return null
+        val current = activeRides[id]?.takeIf { activeRideId == id && it.status == DRIVER_FOUND } ?: return null
         val completed = current.copy(status = COMPLETED)
         activeRides[id] = completed
+        activeRideId = null
         val order =
             Order(
                 id = nextOrderId.getAndIncrement(),
@@ -52,9 +61,10 @@ class RideStore {
 
     @Synchronized
     fun cancel(id: Int): ActiveRide? {
-        val current = activeRides[id]?.takeIf { it.status == DRIVER_FOUND } ?: return null
+        val current = activeRides[id]?.takeIf { activeRideId == id && it.status == DRIVER_FOUND } ?: return null
         val cancelled = current.copy(status = CANCELLED)
         activeRides[id] = cancelled
+        activeRideId = null
         return cancelled
     }
 
@@ -63,6 +73,7 @@ class RideStore {
         nextRideId.set(100)
         nextOrderId.set(4)
         activeRides.clear()
+        activeRideId = null
         orders = SeedData.orders
     }
 
@@ -70,5 +81,6 @@ class RideStore {
         const val DRIVER_FOUND = "driver_found"
         const val COMPLETED = "completed"
         const val CANCELLED = "cancelled"
+        const val ACTIVE_RIDE_EXISTS_CODE = "ACTIVE_RIDE_EXISTS"
     }
 }

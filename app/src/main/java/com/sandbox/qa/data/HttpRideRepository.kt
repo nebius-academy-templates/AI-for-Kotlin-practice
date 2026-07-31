@@ -19,8 +19,7 @@ class HttpRideRepository(
     private var token: String? = null
 
     override suspend fun requestGeolocation(): String =
-        ioCall {
-            syncSandboxStates()
+        sandboxCall {
             authorizedRequest("POST", "/location/resolve").getString("location")
         }
 
@@ -28,8 +27,7 @@ class HttpRideRepository(
         from: String,
         to: String,
     ): List<RideOption> =
-        ioCall {
-            syncSandboxStates()
+        sandboxCall {
             val path = "/rides/options?from=${encode(from)}&to=${encode(to)}"
             authorizedRequest("GET", path)
                 .getJSONArray("options")
@@ -37,11 +35,20 @@ class HttpRideRepository(
         }
 
     override suspend fun getOrders(): List<Order> =
-        ioCall {
-            syncSandboxStates()
+        sandboxCall {
             authorizedRequest("GET", "/orders")
                 .getJSONArray("orders")
                 .mapObjects(::order)
+        }
+
+    override suspend fun getActiveRide(): ActiveRide? =
+        sandboxCall {
+            val response = authorizedResult("GET", "/rides/active")
+            when (response.status) {
+                HttpURLConnection.HTTP_OK -> activeRide(response.body)
+                HttpURLConnection.HTTP_NOT_FOUND -> null
+                else -> response.throwFailure()
+            }
         }
 
     override suspend fun createRide(
@@ -49,8 +56,7 @@ class HttpRideRepository(
         to: String,
         rideOptionId: Int,
     ): ActiveRide =
-        ioCall {
-            syncSandboxStates()
+        sandboxCall {
             authorizedRequest(
                 "POST",
                 "/rides",
@@ -62,14 +68,12 @@ class HttpRideRepository(
         }
 
     override suspend fun completeRide(rideId: Int): Order =
-        ioCall {
-            syncSandboxStates()
+        sandboxCall {
             order(authorizedRequest("POST", "/rides/$rideId/complete").getJSONObject("order"))
         }
 
     override suspend fun cancelRide(rideId: Int): ActiveRide =
-        ioCall {
-            syncSandboxStates()
+        sandboxCall {
             activeRide(authorizedRequest("POST", "/rides/$rideId/cancel"))
         }
 
@@ -94,9 +98,19 @@ class HttpRideRepository(
             }
         }
 
-    private fun syncSandboxStates() {
+    private suspend fun <T> sandboxCall(block: () -> T): T {
+        // ConditionConfig is Compose snapshot state. Read it on the main
+        // thread, then pass an immutable value into the blocking I/O section.
+        val sandboxStates = withContext(Dispatchers.Main.immediate) { ConditionConfig.snapshot() }
+        return ioCall {
+            syncSandboxStates(sandboxStates)
+            block()
+        }
+    }
+
+    private fun syncSandboxStates(sandboxStates: Map<String, Boolean>) {
         val snapshot = JSONObject()
-        ConditionConfig.snapshot().forEach(snapshot::put)
+        sandboxStates.forEach(snapshot::put)
         request("POST", "/sandbox/state/snapshot", snapshot).requireSuccess()
     }
 
@@ -104,13 +118,19 @@ class HttpRideRepository(
         method: String,
         path: String,
         body: JSONObject? = null,
-    ): JSONObject {
+    ): JSONObject = authorizedResult(method, path, body).requireSuccess()
+
+    private fun authorizedResult(
+        method: String,
+        path: String,
+        body: JSONObject? = null,
+    ): HttpResult {
         var response = request(method, path, body, token ?: obtainToken())
         if (response.status == HttpURLConnection.HTTP_UNAUTHORIZED) {
             token = null
             response = request(method, path, body, obtainToken())
         }
-        return response.requireSuccess()
+        return response
     }
 
     private fun obtainToken(): String {
@@ -196,13 +216,23 @@ class HttpRideRepository(
     ) {
         fun requireSuccess(): JSONObject {
             if (status !in 200..299) {
-                val error = body.optString("error", "Request failed")
-                if (status == HttpURLConnection.HTTP_CONFLICT && error == SandboxContract.NO_CARS_FOUND_ERROR) {
-                    throw DriverNotFoundException(error)
-                }
-                throw ApiException("HTTP $status: $error")
+                throwFailure()
             }
             return body
+        }
+
+        fun throwFailure(): Nothing {
+            val error = body.optString("error", "Request failed")
+            if (status == HttpURLConnection.HTTP_CONFLICT && error == SandboxContract.NO_CARS_FOUND_ERROR) {
+                throw DriverNotFoundException(error)
+            }
+            if (
+                status == HttpURLConnection.HTTP_CONFLICT &&
+                body.optString("code") == SandboxContract.ACTIVE_RIDE_EXISTS_CODE
+            ) {
+                throw ActiveRideExistsException(error)
+            }
+            throw ApiException("HTTP $status: $error")
         }
     }
 

@@ -34,6 +34,17 @@ object ConditionConfig {
             ALL.forEach { put(it, false) }
         }
 
+    /**
+     * Creates and validates the observable registry on the main thread before
+     * the first composition. Do not remove this eager access: initializing the
+     * snapshot state for the first time from [ConditionReceiver] can crash.
+     */
+    fun initialize() {
+        check(state.size == ALL.size && ALL.all(state::containsKey)) {
+            "Sandbox state registry does not match the known conditions"
+        }
+    }
+
     fun isEnabled(condition: String): Boolean = state[condition] == true
 
     fun set(

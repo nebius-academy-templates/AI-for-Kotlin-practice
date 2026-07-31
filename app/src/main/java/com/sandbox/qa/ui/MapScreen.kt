@@ -113,7 +113,7 @@ fun MapScreen(
                 },
                 onOpenOrders = {
                     scope.launch {
-                        drawerState.close()
+                        drawerState.snapTo(DrawerValue.Closed)
                         onOpenOrders()
                     }
                 },
@@ -175,14 +175,14 @@ fun MapScreen(
                             Modifier
                                 .fillMaxWidth()
                                 .background(WarningOrange)
-                                .padding(12.dp)
-                                .testTag("region_banner"),
+                                .padding(12.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             text = "Service is not available in this region yet",
                             color = Color.Black,
                             fontWeight = FontWeight.Bold,
+                            modifier = Modifier.testTag("region_banner"),
                         )
                     }
                 }

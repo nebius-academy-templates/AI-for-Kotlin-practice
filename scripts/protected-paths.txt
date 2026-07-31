@@ -1,15 +1,30 @@
-# Paths an AI agent must not modify unless the human explicitly requests an
-# in-scope change. Directories end with "/"; single files are exact paths.
+# Protected paths: an AI agent must not modify these without explicit human
+# approval. Directories end with "/", single files are exact repo-relative
+# paths. Blank lines and "#" comments are ignored.
+#
+# Enforced on Submit: the platform rejects a submission when the diff against
+# the trusted template revision touches a protected path.
+#
+# Rationale per entry lives in AGENTS.md. If a change here is intentional,
+# say so in the PR description; the reviewer checks it consciously.
 
-# The application under test must not be changed to make a test green.
+# The app under test: editing it to green a test masks regressions.
 app/
 
-# CI must not be weakened to hide a failing check.
+# The backend under test: editing product rules to green an API test masks
+# regressions in the same way as editing the Android app.
+fake-api/
+
+# CI definitions: greening a build by editing the pipeline is not a fix.
 .github/workflows/
 
-# These session safeguards prevent tests from silently using the wrong APK.
+# Appium session config: silent-wrong-build protection lives here
+# (enforceAppInstall, disableIdLocatorAutocompletion).
 appium-tests/src/test/kotlin/rule/DriverFactory.kt
 
-# Every participant uses the same Appium toolchain.
+# Pinned Appium toolchain: every student runs the same versions.
 package.json
 package-lock.json
+
+# Course fixtures are ground truth for exercises.
+fixtures/
