@@ -92,6 +92,12 @@ data class ErrorResponse(
 )
 
 @Serializable
+data class CodedErrorResponse(
+    val error: String,
+    val code: String,
+)
+
+@Serializable
 data class RegionStatus(
     val available: Boolean,
 )
@@ -114,8 +120,8 @@ data class OrdersResponse(
 
 /**
  * Seed data of the fake backend. The values are load bearing and shared with
- * the mobile app (AGENTS.md, "Load-bearing values"). Tests assert
- * them across the API and UI layers, so do not change them casually.
+ * the mobile app and the course fixtures (AGENTS.md, "Load-bearing values"):
+ * reference tests assert them, do not change them casually.
  */
 object SeedData {
     const val VALID_OTP = "1234"

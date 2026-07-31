@@ -29,8 +29,9 @@ curl -s -X POST localhost:8080/auth/otp -H "Content-Type: application/json" -d '
 curl -s "localhost:8080/rides/options?from=Center&to=Airport" -H "Authorization: Bearer <token>"
 curl -s localhost:8080/orders -H "Authorization: Bearer <token>"
 
-# 4. Order and complete a ride; it becomes the newest history entry
+# 4. Order a ride, read the active ride, then complete it; it becomes the newest history entry
 curl -s -X POST localhost:8080/rides -H "Content-Type: application/json" -H "Authorization: Bearer <token>" -d '{"from":"Oak Avenue","to":"Market Street","rideOptionId":1}'
+curl -s localhost:8080/rides/active -H "Authorization: Bearer <token>"
 curl -s -X POST localhost:8080/rides/100/complete -H "Authorization: Bearer <token>"
 ```
 
@@ -41,7 +42,8 @@ curl -s -X POST localhost:8080/rides/100/complete -H "Authorization: Bearer <tok
 | POST | /auth/phone | no | Validate the phone (>= 8 digits), issue an OTP |
 | POST | /auth/otp | no | Exchange phone + code 1234 for a bearer token |
 | GET | /rides/options?from=&to= | bearer | Three tariffs in euro cents: Yellow 2970, Turquoise 3454, Minivan 3905 |
-| POST | /rides | bearer | Search for a driver; returns one deterministically or HTTP 409 under `driver_not_found` |
+| GET | /rides/active | bearer | Return the one active ride for this sandbox session, or HTTP 404 |
+| POST | /rides | bearer | Search for a driver; HTTP 409 with `ACTIVE_RIDE_EXISTS` if the session already has an active ride |
 | POST | /rides/{id}/complete | bearer | Complete a ride and add it to order history |
 | POST | /rides/{id}/cancel | bearer | Cancel a ride without a history entry |
 | GET | /orders | bearer | Past orders in euro cents: 2970 / 1450 / 980 |
@@ -53,6 +55,9 @@ curl -s -X POST localhost:8080/rides/100/complete -H "Authorization: Bearer <tok
 | POST | /sandbox/reset | no | Disable states, clear active rides, restore seed history |
 
 The full contract with schemas and examples is [openapi.yaml](openapi.yaml).
+
+An active ride has no TTL and survives client restarts. Only complete, cancel
+and sandbox reset release the session's active slot.
 
 ## Sandbox states over HTTP
 
@@ -72,7 +77,10 @@ curl -s -X POST localhost:8080/sandbox/reset
 | intermittent_backend_delay | About half of the data calls spike to 18000 ms, a genuine flake |
 | region_unavailable | GET /region/status flips to `{"available": false}` |
 
-Auth and the /sandbox control plane always answer fast; only the data endpoints (/rides/options, /orders) go through the simulated network. A 200 from POST /sandbox/state only means the flag flipped: verify the observable effect, the same verification rule used for the adb broadcast.
+Auth and the /sandbox control plane always answer fast; data endpoints,
+including `/rides/active`, go through the simulated network. A 200 from POST
+`/sandbox/state` only means the flag flipped: verify the observable effect, the
+same verification rule used for the adb broadcast.
 
 ## Load-bearing values
 

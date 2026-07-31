@@ -137,6 +137,20 @@ fun Application.fakeApiModule(
             call.respond(RideOptionsResponse(options))
         }
 
+        get("/rides/active") {
+            if (!call.requireToken(issuedTokens)) {
+                return@get
+            }
+            val session = call.backendSession(sessions)
+            simulateNetwork(session.states)
+            val activeRide = session.rides.active()
+            if (activeRide == null) {
+                call.respond(HttpStatusCode.NotFound, ErrorResponse("No active ride"))
+                return@get
+            }
+            call.respond(activeRide)
+        }
+
         post("/rides") {
             if (!call.requireToken(issuedTokens)) {
                 return@post
@@ -157,6 +171,10 @@ fun Application.fakeApiModule(
                 call.respond(HttpStatusCode.BadRequest, ErrorResponse("Unknown ride option ${body.rideOptionId}"))
                 return@post
             }
+            if (session.rides.active() != null) {
+                call.respondActiveRideConflict()
+                return@post
+            }
             if (session.states.isEnabled(SandboxStates.CAR_UNAVAILABLE) && option.id == SeedData.MINIVAN_RIDE_ID) {
                 call.respond(HttpStatusCode.Conflict, ErrorResponse("Selected ride option is unavailable"))
                 return@post
@@ -165,7 +183,14 @@ fun Application.fakeApiModule(
                 call.respond(HttpStatusCode.Conflict, ErrorResponse("No cars found for this route"))
                 return@post
             }
-            call.respond(HttpStatusCode.Created, session.rides.create(body.from, body.to, option))
+            val ride = session.rides.create(body.from, body.to, option)
+            if (ride == null) {
+                // create() repeats the check while holding the RideStore lock,
+                // so concurrent requests cannot both occupy the active slot.
+                call.respondActiveRideConflict()
+                return@post
+            }
+            call.respond(HttpStatusCode.Created, ride)
         }
 
         post("/rides/{id}/complete") {
@@ -273,4 +298,14 @@ private suspend fun ApplicationCall.requireToken(issuedTokens: Set<String>): Boo
         return false
     }
     return true
+}
+
+private suspend fun ApplicationCall.respondActiveRideConflict() {
+    respond(
+        HttpStatusCode.Conflict,
+        CodedErrorResponse(
+            error = "An active ride already exists",
+            code = RideStore.ACTIVE_RIDE_EXISTS_CODE,
+        ),
+    )
 }

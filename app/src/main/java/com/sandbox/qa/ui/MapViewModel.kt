@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.sandbox.qa.data.ActiveRide
+import com.sandbox.qa.data.ActiveRideExistsException
 import com.sandbox.qa.data.ApiException
 import com.sandbox.qa.data.DriverNotFoundException
 import com.sandbox.qa.data.Order
@@ -20,6 +21,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+private enum class ActiveRideRestoreState {
+    LOADING,
+    NONE,
+    PRESENT,
+    UNAVAILABLE,
+}
 
 data class MapUiState(
     val pickup: String,
@@ -60,6 +68,12 @@ class MapViewModel(
     private val _uiState = MutableStateFlow(MapUiState(pickup = initialPickup))
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
     private var routeSearchJob: Job? = null
+    private var restoreGeneration = 0L
+    private var activeRideRestoreState = ActiveRideRestoreState.LOADING
+
+    init {
+        restoreActiveRide()
+    }
 
     fun onPickupChange(value: String) {
         routeSearchJob?.cancel()
@@ -151,6 +165,8 @@ class MapViewModel(
     }
 
     fun returnHomeAfterRide() {
+        invalidatePendingRestore()
+        activeRideRestoreState = ActiveRideRestoreState.NONE
         _uiState.update {
             it.copy(
                 selectedRideId = null,
@@ -166,6 +182,7 @@ class MapViewModel(
         val state = _uiState.value
         val rideId = state.selectedRideId ?: return
         if (state.rideActionLoading || state.searchingForDriver) return
+        invalidatePendingRestore()
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
@@ -181,6 +198,7 @@ class MapViewModel(
             try {
                 val ride = repository.createRide(state.pickup, state.destination, rideId)
                 notificationStore.recordDriverFound(ride)
+                activeRideRestoreState = ActiveRideRestoreState.PRESENT
                 _uiState.update {
                     it.copy(
                         searchingForDriver = false,
@@ -188,7 +206,11 @@ class MapViewModel(
                         statusMessage = null,
                     )
                 }
+            } catch (_: ActiveRideExistsException) {
+                _uiState.update { it.copy(searchingForDriver = false, rideActionError = null) }
+                restoreActiveRide()
             } catch (e: DriverNotFoundException) {
+                activeRideRestoreState = ActiveRideRestoreState.NONE
                 _uiState.update {
                     it.copy(
                         searchingForDriver = false,
@@ -211,11 +233,13 @@ class MapViewModel(
     fun completeRide() {
         val ride = _uiState.value.activeRide ?: return
         if (_uiState.value.rideActionLoading) return
+        invalidatePendingRestore()
         viewModelScope.launch {
             _uiState.update { it.copy(rideActionLoading = true, rideActionError = null) }
             try {
                 val order = repository.completeRide(ride.id)
                 notificationStore.recordRideCompleted(order)
+                activeRideRestoreState = ActiveRideRestoreState.NONE
                 _uiState.update {
                     it.copy(
                         rideActionLoading = false,
@@ -232,11 +256,13 @@ class MapViewModel(
     fun cancelRide() {
         val ride = _uiState.value.activeRide ?: return
         if (_uiState.value.rideActionLoading) return
+        invalidatePendingRestore()
         viewModelScope.launch {
             _uiState.update { it.copy(rideActionLoading = true, rideActionError = null) }
             try {
                 val cancelledRide = repository.cancelRide(ride.id)
                 notificationStore.recordRideCancelled(cancelledRide)
+                activeRideRestoreState = ActiveRideRestoreState.NONE
                 _uiState.update {
                     it.copy(
                         rideActionLoading = false,
@@ -249,6 +275,47 @@ class MapViewModel(
                 _uiState.update { it.copy(rideActionLoading = false, rideActionError = e.message) }
             }
         }
+    }
+
+    private fun restoreActiveRide() {
+        val requestGeneration = ++restoreGeneration
+        activeRideRestoreState = ActiveRideRestoreState.LOADING
+        viewModelScope.launch {
+            val result = runCatching { repository.getActiveRide() }
+            if (
+                requestGeneration != restoreGeneration ||
+                activeRideRestoreState != ActiveRideRestoreState.LOADING
+            ) {
+                return@launch
+            }
+            result.fold(
+                onSuccess = { ride ->
+                    activeRideRestoreState =
+                        if (ride == null) {
+                            ActiveRideRestoreState.NONE
+                        } else {
+                            ActiveRideRestoreState.PRESENT
+                        }
+                    if (ride != null) {
+                        _uiState.update { it.copy(activeRide = ride) }
+                    }
+                },
+                onFailure = {
+                    // Restoration is best-effort and must not block or add an
+                    // error banner to the ride form. A later create conflict
+                    // reconciles with the server through this same endpoint.
+                    activeRideRestoreState = ActiveRideRestoreState.UNAVAILABLE
+                },
+            )
+        }
+    }
+
+    private fun invalidatePendingRestore() {
+        if (activeRideRestoreState != ActiveRideRestoreState.LOADING) {
+            return
+        }
+        restoreGeneration++
+        activeRideRestoreState = ActiveRideRestoreState.UNAVAILABLE
     }
 
     companion object {
