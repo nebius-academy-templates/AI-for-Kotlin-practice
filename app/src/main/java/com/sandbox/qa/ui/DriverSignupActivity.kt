@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.TextView
 import com.sandbox.qa.R
 
@@ -21,7 +22,7 @@ class DriverSignupActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_driver_signup)
 
-        findViewById<Button>(R.id.driver_back_button).setOnClickListener { finish() }
+        findViewById<ImageButton>(R.id.driver_back_button).setOnClickListener { finish() }
 
         val nameInput = findViewById<EditText>(R.id.driver_name_input)
         val carInput = findViewById<EditText>(R.id.driver_car_input)

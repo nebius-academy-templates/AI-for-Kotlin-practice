@@ -5,8 +5,9 @@ unverified until it is checked against source code, a real run or a log.
 
 ## Safety boundaries
 
-- Never edit `app/` to make a test pass. A test-repair task may change only the
-  test layers unless the human explicitly requests a product change.
+- Never edit `app/` or `fake-api/` to make a test pass. A test-repair task may
+  change only the test layers unless the human explicitly requests a product
+  change.
 - Never weaken assertions, increase timeouts or add retries without evidence
   that the test expectation is correct and the synchronization is the defect.
 - Never run `git push` without explicit approval for that specific push in the
@@ -27,6 +28,9 @@ unverified until it is checked against source code, a real run or a log.
 - The main flow is phone and OTP authentication, location onboarding, pickup
   and destination entry, tariff selection, driver search, ride completion or
   cancellation, notifications and order history.
+- Each sandbox session has at most one active ride. The app restores that ride
+  asynchronously through `GET /rides/active` without blocking the ride form.
+  Active rides have no TTL; only complete, cancel and reset release the slot.
 
 ## Build and run
 

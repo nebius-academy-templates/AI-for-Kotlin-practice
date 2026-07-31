@@ -8,7 +8,7 @@ info:
     Fully local, with no database or external services. Stateful endpoints
     accept the optional `X-Sandbox-Session` header; different values isolate
     sandbox states, active rides and order history.
-  version: 2.0.0
+  version: 2.1.0
 servers:
   - url: http://localhost:8080
     description: Local server started with `./gradlew :fake-api:run`
@@ -138,13 +138,54 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               example: { error: Internal Server Error }
+  /rides/active:
+    get:
+      tags: [data]
+      summary: Get the active ride for this sandbox session
+      description: >-
+        Returns the one active ride for the sandbox session. Closing or
+        restarting a client does not cancel a ride and there is no automatic
+        expiry or TTL. Only complete, cancel and sandbox reset release the
+        active slot. Affected by the latency and error states.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SandboxSession'
+      responses:
+        '200':
+          description: Active ride
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveRide'
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: This sandbox session has no active ride
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: No active ride }
+        '500':
+          description: backend_error state is enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /rides:
     post:
       tags: [data]
       summary: Order a ride and find a driver
       description: >-
         Creates a deterministic demo ride. The simulated network delay represents
-        driver search; a successful response has status driver_found. When
+        driver search; a successful response has status driver_found. A sandbox
+        session can have only one active ride. Closing a client does not release
+        that slot; only complete, cancel and sandbox reset do. When
         driver_not_found is enabled, the search finishes with HTTP 409 and does
         not create an active ride.
       security:
@@ -177,12 +218,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Region/tariff unavailable, or driver_not_found prevented assignment
+          description: >-
+            For a valid route and known tariff, conflict precedence is
+            region_unavailable, then an existing active ride, then
+            car_unavailable, then driver_not_found.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
+                activeRideExists:
+                  value:
+                    error: An active ride already exists
+                    code: ACTIVE_RIDE_EXISTS
                 noDriver:
                   value: { error: No cars found for this route }
         '500':
@@ -484,6 +532,10 @@ components:
         error:
           type: string
           example: Invalid code
+        code:
+          type: string
+          description: Stable machine-readable reason when the client must branch on a specific error
+          example: ACTIVE_RIDE_EXISTS
     RideOption:
       type: object
       required: [id, name, seats, price, category, available]

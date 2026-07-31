@@ -87,3 +87,35 @@ tasks.test {
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
 }
+
+val checkPageObjectBoundary by tasks.registering {
+    group = "verification"
+    description = "Reject Element construction outside the pages layer."
+    val sources =
+        fileTree("src/test/kotlin") {
+            include("**/*.kt")
+            exclude("pages/**")
+        }
+    inputs.files(sources)
+    doLast {
+        val constructor = Regex("""\bElement\s*\(""")
+        val violations =
+            sources.flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    val trimmed = line.trimStart()
+                    if (!trimmed.startsWith("//") && !trimmed.startsWith("*") && constructor.containsMatchIn(line)) {
+                        "${file.relativeTo(projectDir)}:${index + 1}"
+                    } else {
+                        null
+                    }
+                }
+            }
+        check(violations.isEmpty()) {
+            "Element must be constructed only in pages/: ${violations.joinToString()}"
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn(checkPageObjectBoundary)
+}

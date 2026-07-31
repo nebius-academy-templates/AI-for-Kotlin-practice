@@ -16,6 +16,9 @@ interface RideRepository {
 
     suspend fun getOrders(): List<Order>
 
+    /** Returns the unfinished ride for this sandbox session, or null when none exists. */
+    suspend fun getActiveRide(): ActiveRide?
+
     suspend fun createRide(
         from: String,
         to: String,
