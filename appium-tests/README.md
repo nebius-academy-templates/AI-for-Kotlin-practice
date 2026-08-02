@@ -1,7 +1,8 @@
 # Appium tests
 
 Kotlin, JUnit 5 and Appium UiAutomator2 tests for the Android app in `app/`.
-The starter suite contains nine test cases in four classes.
+The starter suite contains six test cases in three classes:
+`OnboardingSmokeTest`, `PasskeyPromoTest` and `RideAndHistoryE2ETest`.
 
 ## Run
 

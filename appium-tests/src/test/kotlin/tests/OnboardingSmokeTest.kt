@@ -17,10 +17,20 @@ class OnboardingSmokeTest : AppiumTestCase() {
     @DisplayName("Full onboarding opens the map")
     @AllureId("1000")
     fun testFullOnboardingOpensMap() {
-        step("Complete onboarding to the map screen") {
-            onboarding.completeUntilMap()
+        step("Valid phone opens OTP") {
+            onboarding.reachOtp()
         }
-        step("Resolved pickup is shown on the ride form") {
+        step("Valid OTP opens passkey promo") {
+            onboarding.submitValidOtpToPasskey()
+        }
+        step("Skip opens location onboarding") {
+            onboarding.skipPasskeyToGeo()
+        }
+        step("Enabling location opens the ride form") {
+            onboarding.enableLocationToMap()
+        }
+        step("Ride form is ready and contains the resolved pickup") {
+            map.awaitReady()
             map.assertPickup(TestData.PICKUP)
         }
     }

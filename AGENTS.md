@@ -89,19 +89,19 @@ creation relaunches the app process.
 
 ## Starter tests
 
-The repository starts with nine Appium cases in:
+The repository starts with six Appium cases in:
 
 - `OnboardingSmokeTest`
-- `PhoneLoginValidationTest`
+- `PasskeyPromoTest`
 - `RideAndHistoryE2ETest`
-- `OrderHistoryStateTest`
 
-The API starter is `ApiSmokeTest`. New tests must use unused repository Allure
-IDs and must not duplicate existing coverage.
+The API starter contains four cases in `ApiSmokeTest` and
+`RideLifecycleApiTest`. New tests must use unused repository Allure IDs and
+must not duplicate existing coverage.
 
 ## CI
 
-The GitHub workflow builds and compiles the project and runs the API starter.
+The GitHub workflow builds and compiles the project and runs the API starter suite.
 It does not execute Appium tests. A green CI result is therefore not proof of a
 green UI suite; use the local sequential runner and inspect its non-zero test
 count.

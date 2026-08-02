@@ -15,7 +15,7 @@ import testdata.TestData
 class RideAndHistoryE2ETest : AppiumTestCase() {
     @Test
     @DisplayName("Search a ride then check order history")
-    @AllureId("1007")
+    @AllureId("1003")
     fun testSearchRideThenCheckHistory() {
         step("Start on the map (authorized)") {
             map.awaitReady()

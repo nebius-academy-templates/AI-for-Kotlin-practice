@@ -14,23 +14,10 @@ import testdata.TestData
 object OnboardingActions {
     /** Valid phone + OTP, skip passkey, enable geo → lands on the map screen. */
     fun completeUntilMap() {
-        PhoneLoginPage.title.waitFor()
-        PhoneLoginPage.phoneInput.sendKeys(TestData.PHONE)
-        Device.hideKeyboard()
-        PhoneLoginPage.continueButton.click()
-
-        OtpPage.title.waitFor()
-        OtpPage.codeInput.sendKeys(TestData.VALID_OTP)
-        Device.hideKeyboard()
-        OtpPage.confirmButton.click()
-
-        PasskeyPage.title.waitFor()
-        PasskeyPage.skipButton.click()
-
-        GeoPage.title.waitFor()
-        GeoPage.enableButton.click()
-
-        MapPage.destinationField.waitFor(20)
+        reachOtp()
+        submitValidOtpToPasskey()
+        skipPasskeyToGeo()
+        enableLocationToMap()
     }
 
     /** Enters a wrong OTP and asserts the inline error is shown. */
@@ -59,6 +46,11 @@ object OnboardingActions {
     /** Valid phone + OTP; lands on the passkey promo. */
     fun reachPasskey() {
         reachOtp()
+        submitValidOtpToPasskey()
+    }
+
+    /** Enters the valid OTP and confirms; lands on the passkey promo. */
+    fun submitValidOtpToPasskey() {
         OtpPage.codeInput.sendKeys(TestData.VALID_OTP)
         Device.hideKeyboard()
         OtpPage.confirmButton.click()
@@ -155,9 +147,14 @@ object OnboardingActions {
         assertEquals(TestData.BACKEND_ERROR_MESSAGE, GeoPage.errorLabel.text, "geo error message")
     }
 
-    /** Retries the location request; lands on the map. */
-    fun retryLocationReachesMap() {
+    /** Enables location; lands on the map ride form. */
+    fun enableLocationToMap() {
         GeoPage.enableButton.click()
         MapPage.destinationField.waitFor(20)
+    }
+
+    /** Retries the location request; lands on the map. */
+    fun retryLocationReachesMap() {
+        enableLocationToMap()
     }
 }

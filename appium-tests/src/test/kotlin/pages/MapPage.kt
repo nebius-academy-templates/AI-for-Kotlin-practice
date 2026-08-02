@@ -42,4 +42,6 @@ object MapPage {
     fun rideName(rideId: Int) = Element("ride_name_$rideId", defaultTimeoutSec = 15)
 
     fun rideOption(rideId: Int) = Element("ride_option_$rideId", defaultTimeoutSec = 15)
+
+    fun rideSelected(rideId: Int) = Element("ride_selected_$rideId", defaultTimeoutSec = 15)
 }
