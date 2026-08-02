@@ -6,6 +6,7 @@ import client.SandboxApi
 import io.qameta.allure.AllureId
 import io.qameta.allure.Feature
 import model.ErrorResponse
+import model.Order
 import model.SandboxStateRequest
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
@@ -21,6 +22,7 @@ class RideLifecycleApiTest : ApiTestCase() {
     fun testCompletedRideAppearsInHistory() {
         val token = obtainToken()
         var rideId = 0
+        lateinit var completedOrder: Order
 
         step("Order the Yellow tariff: a driver is found") {
             val actual = RidesApi.create(token, ApiTestData.FROM, ApiTestData.TO, ApiTestData.YELLOW_TARIFF.id)
@@ -34,14 +36,13 @@ class RideLifecycleApiTest : ApiTestCase() {
             assertThat(actual.statusCode).isEqualTo(200)
             assertThat(actual.body.ride.status).isEqualTo(ApiTestData.COMPLETED_STATUS)
             assertThat(actual.body.order.priceCents).isEqualTo(ApiTestData.YELLOW_TARIFF.priceCents)
+            completedOrder = actual.body.order
         }
         step("Order history contains the completed ride first") {
             val actual = OrdersApi.orders(token)
             assertThat(actual.statusCode).isEqualTo(200)
             assertThat(actual.body.orders).hasSize(ApiTestData.SEEDED_ORDERS.size + 1)
-            val completedOrder = actual.body.orders.first()
-            assertThat(completedOrder.to).isEqualTo(ApiTestData.TO)
-            assertThat(completedOrder.priceCents).isEqualTo(ApiTestData.YELLOW_TARIFF.priceCents)
+            assertThat(actual.body.orders.first()).isEqualTo(completedOrder)
         }
     }
 
@@ -84,6 +85,11 @@ class RideLifecycleApiTest : ApiTestCase() {
             val actual = RidesApi.create(token, ApiTestData.FROM, ApiTestData.TO, ApiTestData.YELLOW_TARIFF.id)
             assertThat(actual.statusCode).isEqualTo(409)
             assertThat(actual.error).isEqualTo(ErrorResponse(ApiTestData.DRIVER_NOT_FOUND_ERROR))
+        }
+        step("No active ride was created") {
+            val actual = RidesApi.active(token)
+            assertThat(actual.statusCode).isEqualTo(404)
+            assertThat(actual.error).isEqualTo(ErrorResponse(ApiTestData.NO_ACTIVE_RIDE_ERROR))
         }
         step("Order history still contains only the three seeded rides") {
             val actual = OrdersApi.orders(token)

@@ -20,6 +20,7 @@ object ApiTestData {
     const val TOKEN_ERROR = "Missing or invalid token" // shared by missing and forged tokens
     const val INTERNAL_SERVER_ERROR = "Internal Server Error"
     const val DRIVER_NOT_FOUND_ERROR = "No cars found for this route"
+    const val NO_ACTIVE_RIDE_ERROR = "No active ride"
     const val DRIVER_FOUND_STATUS = "driver_found"
     const val COMPLETED_STATUS = "completed"
     const val CANCELLED_STATUS = "cancelled"
