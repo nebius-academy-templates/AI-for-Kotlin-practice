@@ -11,7 +11,7 @@ import rule.ApiTestCase
 import testdata.ApiTestData
 
 /**
- * The one API example shipped in the Week 1 student template.
+ * The authentication smoke shipped in the Week 1 student template.
  *
  * Broader endpoint coverage is intentionally left for student exercises.
  */

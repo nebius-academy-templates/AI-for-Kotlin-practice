@@ -18,6 +18,10 @@ object MapActions {
         assertEquals(expected, MapPage.pickupField.text, "pickup location")
     }
 
+    fun assertDestination(expected: String) {
+        assertEquals(expected, MapPage.destinationField.text, "destination")
+    }
+
     fun replacePickup(text: String) {
         MapPage.pickupField.clear()
         MapPage.pickupField.sendKeys(text)
@@ -133,6 +137,27 @@ object MapActions {
     /** The tariff is offered and selectable again (e.g. after the state resets). */
     fun assertTariffAvailable(rideId: Int) {
         assertTrue(MapPage.rideOption(rideId).waitFor().isEnabled, "ride $rideId should be enabled")
+    }
+
+    fun selectTariff(rideId: Int) {
+        MapPage.rideOption(rideId).click()
+        MapPage.rideSelected(rideId).waitFor()
+    }
+
+    fun assertOnlyTariffSelected(
+        selectedRideId: Int,
+        allRideIds: Set<Int>,
+    ) {
+        MapPage.rideSelected(selectedRideId).waitFor()
+        (allRideIds - selectedRideId).forEach { rideId ->
+            assertFalse(MapPage.rideSelected(rideId).isPresent(), "ride $rideId should not be selected")
+        }
+    }
+
+    fun assertNoSelectedTariff(rideIds: Set<Int>) {
+        rideIds.forEach { rideId ->
+            assertFalse(MapPage.rideSelected(rideId).isPresent(), "ride $rideId should not be selected")
+        }
     }
 
     fun selectAndOrderRide(rideId: Int) {

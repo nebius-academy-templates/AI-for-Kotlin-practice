@@ -1,7 +1,8 @@
 # API tests
 
 Kotlin, JUnit 5 and REST Assured tests for the HTTP contract in
-`fake-api/openapi.yaml`. The starter contains one `ApiSmokeTest`.
+`fake-api/openapi.yaml`. The starter contains four tests in `ApiSmokeTest`
+and `RideLifecycleApiTest`.
 
 ## Run
 

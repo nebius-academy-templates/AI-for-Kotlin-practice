@@ -14,7 +14,7 @@ in `fake-api/`.
 | `fake-api/` | Local backend, OpenAPI contract and Swagger UI |
 | `scripts/` | Environment setup and sequential Appium runners |
 
-The starter contains nine Appium test cases and one API test case. Add new
+The starter contains six Appium test cases and four API test cases. Add new
 coverage in the test modules; do not edit `app/` to make a failing test green.
 
 ## Agent skills
@@ -91,7 +91,7 @@ seam documented in `AGENTS.md`.
 ## CI scope
 
 GitHub Actions checks Kotlin formatting, builds both app flavors, runs the API
-starter test and compiles the Appium module. It does not run Appium tests.
+starter suite and compiles the Appium module. It does not run Appium tests.
 A local emulator run through the OS-specific suite runner is required as UI
 test evidence.
 
