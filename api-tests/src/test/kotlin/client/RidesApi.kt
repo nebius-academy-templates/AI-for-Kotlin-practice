@@ -22,6 +22,14 @@ object RidesApi {
             .toApiResponse(RideOptionsResponse.serializer())
     }
 
+    fun active(token: String?): ApiResponse<ActiveRide> {
+        val request = given().spec(ApiSpec.request)
+        token?.let { request.header("Authorization", "Bearer $it") }
+        return request
+            .get("/rides/active")
+            .toApiResponse(ActiveRide.serializer())
+    }
+
     fun create(
         token: String?,
         from: String,
