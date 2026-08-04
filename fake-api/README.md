@@ -40,7 +40,7 @@ curl -s -X POST localhost:8080/rides/100/complete -H "Authorization: Bearer <tok
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | POST | /auth/phone | no | Validate the phone (>= 8 digits), issue an OTP |
-| POST | /auth/otp | no | Exchange phone + code 1234 for a bearer token |
+| POST | /auth/otp | no | Validate the phone (>= 8 digits), exchange code 1234 for a session-scoped bearer token |
 | GET | /rides/options?from=&to= | bearer | Three tariffs in euro cents: Yellow 2970, Turquoise 3454, Minivan 3905 |
 | GET | /rides/active | bearer | Return the one active ride for this sandbox session, or HTTP 404 |
 | POST | /rides | bearer | Search for a driver; HTTP 409 with `ACTIVE_RIDE_EXISTS` if the session already has an active ride |
@@ -52,12 +52,16 @@ curl -s -X POST localhost:8080/rides/100/complete -H "Authorization: Bearer <tok
 | GET | /sandbox/state | no | Snapshot of all six sandbox states |
 | POST | /sandbox/state | no | Enable or disable one state |
 | POST | /sandbox/state/snapshot | no | Replace all six states from the Android adb-controlled snapshot |
-| POST | /sandbox/reset | no | Disable states, clear active rides, restore seed history |
+| POST | /sandbox/reset | no | Disable states, clear active rides, restore seed history; issued tokens remain valid |
 
 The full contract with schemas and examples is [openapi.yaml](openapi.yaml).
 
 An active ride has no TTL and survives client restarts. Only complete, cancel
 and sandbox reset release the session's active slot.
+
+Bearer tokens are scoped to `X-Sandbox-Session`. Send the same session header
+to `/auth/otp` and every protected request; omitting it consistently uses the
+shared default session. Sandbox reset restores product data but is not logout.
 
 ## Sandbox states over HTTP
 

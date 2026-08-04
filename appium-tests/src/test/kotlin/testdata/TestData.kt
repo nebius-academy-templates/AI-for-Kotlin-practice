@@ -2,7 +2,7 @@ package testdata
 
 /** Central test data so testcases read declaratively and values live in one place. */
 object TestData {
-    const val PHONE = "621612383"
+    const val PHONE = "999999999"
     const val VALID_OTP = "1234"
     const val WRONG_OTP = "9999"
     const val WRONG_OTP_ERROR = "Invalid code"
@@ -38,7 +38,7 @@ object TestData {
 
     // Phone validation: >= 8 digits is valid, and the field itself filters non-digits.
     const val SHORT_PHONE = "1234567" // 7 digits - one short of valid
-    const val EIGHT_DIGIT_PHONE = "62161238" // exactly the 8-digit boundary
+    const val EIGHT_DIGIT_PHONE = "12345678" // exactly the 8-digit boundary
     const val PHONE_VALIDATION_ERROR = "Enter a valid phone number"
     const val MIXED_PHONE_INPUT = "abc123-45.678" // what gets typed...
     const val MIXED_PHONE_DIGITS = "12345678" // ...and what the field keeps

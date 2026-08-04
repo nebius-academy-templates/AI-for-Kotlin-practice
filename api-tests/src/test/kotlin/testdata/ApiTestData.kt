@@ -8,7 +8,7 @@ import model.SandboxSnapshot
 object ApiTestData {
     const val PHONE = "+381 64 123 45 67"
     const val SHORT_PHONE = "1234567" // 7 digits, one below the minimum
-    const val EIGHT_DIGIT_PHONE = "62161238" // exactly the minimum
+    const val EIGHT_DIGIT_PHONE = "12345678" // exactly the minimum
     const val SHORT_PHONE_ERROR = "Phone number must contain at least 8 digits"
     const val MALFORMED_BODY = "not-json" // not JSON at all: probes the parser, not the validation
     const val MALFORMED_BODY_ERROR = "Malformed request body"

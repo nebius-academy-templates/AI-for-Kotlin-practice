@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.sandbox.qa.SandboxApplication
-import com.sandbox.qa.di.AuthStore
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -21,13 +20,13 @@ class ConditionReceiver : BroadcastReceiver() {
     ) {
         if (intent.getBooleanExtra(EXTRA_RESET, false)) {
             ConditionConfig.reset()
-            // The same reset seam clears the persistent sign-in flag and the
+            // The same reset seam clears the persistent auth token and the
             // saved profile (back to anonymous), so every autotest starts from
             // a known state (the base class sends this broadcast after each
             // test; run-suite sends it before the run).
             val app = context.applicationContext
-            AuthStore(app).clear()
             (app as? SandboxApplication)?.container?.let { container ->
+                container.authStore.clear()
                 container.profileStore.clear()
                 container.locationStore.clear()
                 container.notificationStore.clear()

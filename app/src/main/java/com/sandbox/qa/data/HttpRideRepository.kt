@@ -10,13 +10,49 @@ import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
-/** Real HTTP client of the deterministic Ktor backend used by the emulator. */
+/** Real auth and ride HTTP client of the deterministic Ktor backend used by the emulator. */
 class HttpRideRepository(
     private val baseUrl: String,
     private val sandboxSessionId: String,
-) : RideRepository {
+    private val tokenProvider: () -> String? = { null },
+    private val onTokenChanged: (String?) -> Unit = {},
+) : RideRepository,
+    AuthRepository {
     @Volatile
-    private var token: String? = null
+    private var testAuthenticationEnabled: Boolean = false
+
+    override suspend fun requestOtp(phone: String) {
+        ioCall {
+            request(
+                "POST",
+                "/auth/phone",
+                JSONObject().put("phone", phone),
+            ).requireSuccess()
+        }
+    }
+
+    override suspend fun verifyOtp(
+        phone: String,
+        code: String,
+    ) {
+        ioCall {
+            val body =
+                request(
+                    "POST",
+                    "/auth/otp",
+                    JSONObject().put("phone", phone).put("code", code),
+                ).requireSuccess()
+            onTokenChanged(body.requiredToken())
+        }
+    }
+
+    /**
+     * Enables token bootstrap only for the Appium `authenticated=true` launch
+     * seam. Normal users never fall back to the sandbox test account.
+     */
+    fun enableTestAuthentication() {
+        testAuthenticationEnabled = true
+    }
 
     override suspend fun requestGeolocation(): String =
         sandboxCall {
@@ -77,12 +113,12 @@ class HttpRideRepository(
             activeRide(authorizedRequest("POST", "/rides/$rideId/cancel"))
         }
 
-    override suspend fun resetSandbox() =
+    override suspend fun resetSandbox() {
         ioCall {
             request("POST", "/sandbox/reset").requireSuccess()
-            token = null
-            Unit
+            onTokenChanged(null)
         }
+    }
 
     private suspend fun <T> ioCall(block: () -> T): T =
         withContext(Dispatchers.IO) {
@@ -125,22 +161,36 @@ class HttpRideRepository(
         path: String,
         body: JSONObject? = null,
     ): HttpResult {
-        var response = request(method, path, body, token ?: obtainToken())
+        val activeToken =
+            tokenProvider()
+                ?: if (testAuthenticationEnabled) {
+                    obtainTestToken()
+                } else {
+                    throw ApiException("Authentication required")
+                }
+        var response = request(method, path, body, activeToken)
         if (response.status == HttpURLConnection.HTTP_UNAUTHORIZED) {
-            token = null
-            response = request(method, path, body, obtainToken())
+            onTokenChanged(null)
+            if (testAuthenticationEnabled) {
+                response = request(method, path, body, obtainTestToken())
+            }
         }
         return response
     }
 
-    private fun obtainToken(): String {
-        val response =
+    /** Issues credentials for the explicit Appium entrance, never for a normal user session. */
+    private fun obtainTestToken(): String {
+        val body =
             request(
                 "POST",
                 "/auth/otp",
-                JSONObject().put("phone", "999999999").put("code", "1234"),
+                JSONObject()
+                    .put("phone", SandboxContract.TEST_PHONE_NUMBER)
+                    .put("code", SandboxContract.VALID_OTP),
             ).requireSuccess()
-        return response.getString("token").also { token = it }
+        val token = body.requiredToken()
+        onTokenChanged(token)
+        return token
     }
 
     private fun request(
@@ -232,6 +282,9 @@ class HttpRideRepository(
             ) {
                 throw ActiveRideExistsException(error)
             }
+            if (status == HttpURLConnection.HTTP_UNAUTHORIZED && error == SandboxContract.INVALID_OTP_ERROR) {
+                throw ApiException(error)
+            }
             throw ApiException("HTTP $status: $error")
         }
     }
@@ -242,5 +295,9 @@ class HttpRideRepository(
         private const val SANDBOX_SESSION_HEADER = "X-Sandbox-Session"
     }
 }
+
+private fun JSONObject.requiredToken(): String =
+    optString("token").takeIf(String::isNotBlank)
+        ?: throw ApiException("Authentication response is missing token")
 
 private fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> = List(length()) { index -> transform(getJSONObject(index)) }

@@ -37,16 +37,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun PhoneLoginScreen(
-    onContinue: () -> Unit,
-    viewModel: PhoneLoginViewModel = viewModel(),
+    onContinue: (String) -> Unit,
+    viewModel: PhoneLoginViewModel = viewModel(factory = PhoneLoginViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Reset on every (re)entry into composition: navigating back from the OTP
-    // screen must show an empty form, exactly like the pre-ViewModel
-    // remember-based state did.
-    LaunchedEffect(Unit) {
-        viewModel.reset()
+    LaunchedEffect(uiState.otpRequestedFor) {
+        uiState.otpRequestedFor?.let { phone ->
+            viewModel.onOtpRequestHandled()
+            onContinue(phone)
+        }
     }
 
     Column(
@@ -127,7 +127,8 @@ fun PhoneLoginScreen(
         }
         Spacer(Modifier.height(12.dp))
         Button(
-            onClick = { if (viewModel.submit()) onContinue() },
+            onClick = viewModel::submit,
+            enabled = !uiState.loading,
             modifier =
                 Modifier
                     .fillMaxWidth()

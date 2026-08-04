@@ -1,8 +1,13 @@
 package com.sandbox.qa.ui
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.sandbox.qa.data.SandboxContract
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.sandbox.qa.data.ApiException
+import com.sandbox.qa.data.AuthRepository
+import com.sandbox.qa.sandboxApplication
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,29 +22,24 @@ data class OtpUiState(
     val code: String = "",
     val error: String? = null,
     val secondsLeft: Int = RESEND_COOLDOWN_SEC,
+    val loading: Boolean = false,
+    val signedIn: Boolean = false,
 )
 
 /**
- * Holds the OTP code input, the validation error and the resend cooldown
- * timer. No dependencies (the valid code is a sandbox constant), so it is
- * created with the default no-args ViewModel factory.
+ * Holds the OTP code input, verifies it with fake-api and owns the resend
+ * cooldown timer.
  */
-class OtpViewModel : ViewModel() {
+class OtpViewModel(
+    private val phone: String,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
     private val _uiState = MutableStateFlow(OtpUiState())
     val uiState: StateFlow<OtpUiState> = _uiState.asStateFlow()
 
     private var cooldownJob: Job? = null
 
-    /**
-     * Restores the initial screen state: clears the code and the error and
-     * restarts the resend cooldown. The screen calls this every time it
-     * enters composition, so returning to the OTP screen (system back from
-     * the passkey promo) shows a fresh screen. This matches the original
-     * remember-based behavior, where the state died with the composition;
-     * the ViewModel outlives it because it is scoped to the backstack entry.
-     */
-    fun reset() {
-        _uiState.update { it.copy(code = "", error = null) }
+    init {
         startCooldown()
     }
 
@@ -47,19 +47,39 @@ class OtpViewModel : ViewModel() {
         _uiState.update { it.copy(code = input.filter { c -> c.isDigit() }.take(4)) }
     }
 
-    /** Checks the code; returns true when the UI should navigate on. */
-    fun confirm(): Boolean =
-        if (_uiState.value.code == SandboxContract.VALID_OTP) {
-            _uiState.update { it.copy(error = null) }
-            true
-        } else {
-            _uiState.update { it.copy(error = "Invalid code") }
-            false
+    /** Sends the code to fake-api and navigates only after it issues a token. */
+    fun confirm() {
+        val state = _uiState.value
+        if (state.loading) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(loading = true, error = null) }
+            try {
+                authRepository.verifyOtp(phone, state.code)
+                _uiState.update { it.copy(loading = false, signedIn = true) }
+            } catch (e: ApiException) {
+                _uiState.update { it.copy(loading = false, error = e.message) }
+            }
         }
+    }
+
+    fun onSignedInHandled() {
+        _uiState.value = OtpUiState()
+        startCooldown()
+    }
 
     /** Restarts the cooldown; the resend button is enabled only at zero. */
     fun resend() {
-        startCooldown()
+        if (_uiState.value.loading) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(loading = true, error = null) }
+            try {
+                authRepository.requestOtp(phone)
+                _uiState.update { it.copy(loading = false) }
+                startCooldown()
+            } catch (e: ApiException) {
+                _uiState.update { it.copy(loading = false, error = e.message) }
+            }
+        }
     }
 
     private fun startCooldown() {
@@ -70,6 +90,15 @@ class OtpViewModel : ViewModel() {
                 while (_uiState.value.secondsLeft > 0) {
                     delay(1_000)
                     _uiState.update { it.copy(secondsLeft = it.secondsLeft - 1) }
+                }
+            }
+    }
+
+    companion object {
+        fun factory(phone: String): ViewModelProvider.Factory =
+            viewModelFactory {
+                initializer {
+                    OtpViewModel(phone, sandboxApplication().container.authRepository)
                 }
             }
     }

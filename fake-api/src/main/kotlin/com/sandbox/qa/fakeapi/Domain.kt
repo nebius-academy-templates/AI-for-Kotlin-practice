@@ -126,6 +126,7 @@ data class OrdersResponse(
 object SeedData {
     const val VALID_OTP = "1234"
     const val MIN_PHONE_DIGITS = 8
+    const val PHONE_VALIDATION_ERROR = "Phone number must contain at least $MIN_PHONE_DIGITS digits"
 
     // Tariff disabled by the car_unavailable state, same id as in the app.
     const val MINIVAN_RIDE_ID = 3

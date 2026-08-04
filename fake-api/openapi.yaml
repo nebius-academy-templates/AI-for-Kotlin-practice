@@ -59,9 +59,10 @@ paths:
       tags: [auth]
       summary: Exchange phone and OTP for a bearer token
       description: >-
-        The only valid code is 1234. On a wrong code the error copy is
-        "Invalid code", the same wording the mobile UI shows. Issued tokens
-        live in server memory and expire on server restart.
+        The phone must contain at least 8 digits and the only valid code is
+        1234. On a wrong code the error copy is "Invalid code", the same
+        wording the mobile UI shows. Issued tokens are scoped to the supplied
+        X-Sandbox-Session, live in server memory and expire on server restart.
       requestBody:
         required: true
         content:
@@ -83,7 +84,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example: { error: Invalid code }
         '400':
-          description: Malformed body
+          description: Phone has fewer than 8 digits or the body is malformed
           content:
             application/json:
               schema:
@@ -433,7 +434,8 @@ paths:
       summary: Reset sandbox states and product data
       description: >-
         Disables all six states, clears active rides and restores the three
-        seeded order-history entries for this sandbox session.
+        seeded order-history entries for this sandbox session. Issued tokens
+        remain valid; this control-plane reset is not a logout operation.
       responses:
         '200':
           description: States disabled and ride data restored
@@ -480,8 +482,8 @@ components:
       in: header
       required: false
       description: >-
-        Session key for isolated sandbox states, active rides and order
-        history. Omit it to use the shared default session.
+        Session key for isolated bearer tokens, sandbox states, active rides
+        and order history. Omit it to use the shared default session.
       schema:
         type: string
         minLength: 1

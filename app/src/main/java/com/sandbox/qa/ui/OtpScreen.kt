@@ -26,16 +26,17 @@ import com.sandbox.qa.data.SandboxContract
 
 @Composable
 fun OtpScreen(
+    phone: String,
     onSuccess: () -> Unit,
-    viewModel: OtpViewModel = viewModel(),
+    viewModel: OtpViewModel = viewModel(factory = OtpViewModel.factory(phone)),
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Reset on every (re)entry into composition: coming back from the passkey
-    // promo must show a fresh OTP screen (empty code, cooldown restarted),
-    // exactly like the pre-ViewModel remember-based state did.
-    LaunchedEffect(Unit) {
-        viewModel.reset()
+    LaunchedEffect(uiState.signedIn) {
+        if (uiState.signedIn) {
+            viewModel.onSignedInHandled()
+            onSuccess()
+        }
     }
 
     Column(
@@ -71,7 +72,8 @@ fun OtpScreen(
         )
         Spacer(Modifier.height(24.dp))
         Button(
-            onClick = { if (viewModel.confirm()) onSuccess() },
+            onClick = viewModel::confirm,
+            enabled = !uiState.loading,
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -90,7 +92,7 @@ fun OtpScreen(
         Spacer(Modifier.height(12.dp))
         TextButton(
             onClick = viewModel::resend,
-            enabled = uiState.secondsLeft == 0,
+            enabled = uiState.secondsLeft == 0 && !uiState.loading,
             modifier = Modifier.testTag(AuthTags.OTP_RESEND),
         ) {
             Text(

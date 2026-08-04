@@ -3,6 +3,7 @@ package com.sandbox.qa.di
 import android.content.Context
 import android.provider.Settings
 import com.sandbox.qa.BuildConfig
+import com.sandbox.qa.data.AuthRepository
 import com.sandbox.qa.data.HttpRideRepository
 import com.sandbox.qa.data.RideRepository
 
@@ -17,18 +18,30 @@ import com.sandbox.qa.data.RideRepository
 class AppContainer(
     context: Context,
 ) {
-    /** App-scoped client of the deterministic Ktor backend running on the host. */
-    val rideRepository: RideRepository =
+    /** Persistent fake-api bearer token; its presence is the sign-in state. */
+    val authStore: AuthStore = AuthStore(context)
+
+    private val httpRideRepository =
         HttpRideRepository(
-            BuildConfig.API_BASE_URL,
-            Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID),
+            baseUrl = BuildConfig.API_BASE_URL,
+            sandboxSessionId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID),
+            tokenProvider = authStore::currentToken,
+            onTokenChanged = authStore::setToken,
         )
+
+    /** App-scoped client of the deterministic Ktor backend running on the host. */
+    val rideRepository: RideRepository = httpRideRepository
+
+    /** The same HTTP client, narrowed to the authentication surface for auth ViewModels. */
+    val authRepository: AuthRepository = httpRideRepository
+
+    /** Enables the explicit `authenticated=true` Appium entrance only. */
+    fun enableTestAuthentication() {
+        httpRideRepository.enableTestAuthentication()
+    }
 
     /** Device-local profile demo data; see [ProfileStore] for why it has no backend twin. */
     val profileStore: ProfileStore = ProfileStore(context)
-
-    /** Persistent sign-in flag; cleared by the ConditionReceiver reset broadcast. */
-    val authStore: AuthStore = AuthStore(context)
 
     /** Last pickup resolved during location onboarding. */
     val locationStore: LocationStore = LocationStore(context)

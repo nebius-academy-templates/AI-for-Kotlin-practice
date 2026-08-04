@@ -1,14 +1,16 @@
 package com.sandbox.qa.di
 
 import android.content.Context
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Persistent "the user has signed in" flag. Unlike the rest of the sandbox
- * state it survives process restarts on purpose: a returning user must land
- * on the ride form, not on the login screen.
+ * Persistent fake-api bearer token. Its presence is the single source of
+ * truth for sign-in state and survives process restarts on purpose.
  *
  * The test seam: the ConditionReceiver reset broadcast
- * (`--ez reset true`) clears this flag together with the sandbox states, and
+ * (`--ez reset true`) clears this token together with the sandbox states, and
  * the test base class sends that broadcast after every test - so autotests
  * always start from a known entrance while manual sessions keep their login.
  */
@@ -16,18 +18,27 @@ class AuthStore(
     context: Context,
 ) {
     private val prefs = context.getSharedPreferences("sandbox_auth", Context.MODE_PRIVATE)
+    private val _token = MutableStateFlow(prefs.getString(KEY_TOKEN, null))
+    val token: StateFlow<String?> = _token.asStateFlow()
 
-    fun isLoggedIn(): Boolean = prefs.getBoolean(KEY_LOGGED_IN, false)
+    fun currentToken(): String? = _token.value
 
-    fun setLoggedIn(value: Boolean) {
-        prefs.edit().putBoolean(KEY_LOGGED_IN, value).apply()
+    fun isLoggedIn(): Boolean = currentToken() != null
+
+    fun setToken(value: String?) {
+        _token.value = value
+        prefs
+            .edit()
+            .apply {
+                if (value == null) remove(KEY_TOKEN) else putString(KEY_TOKEN, value)
+            }.apply()
     }
 
     fun clear() {
-        prefs.edit().clear().apply()
+        setToken(null)
     }
 
     private companion object {
-        const val KEY_LOGGED_IN = "logged_in"
+        const val KEY_TOKEN = "token"
     }
 }
