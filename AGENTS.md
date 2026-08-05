@@ -25,6 +25,8 @@ unverified until it is checked against source code, a real run or a log.
   reaches the host at `10.0.2.2:8080`.
 - Start the backend with `./gradlew :fake-api:run`. Swagger UI is served at
   `http://localhost:8080/swagger` from `fake-api/openapi.yaml`.
+- Bearer tokens belong to the `X-Sandbox-Session` that issued them. Sandbox
+  reset restores product state but does not revoke the session's tokens.
 - The main flow is phone and OTP authentication, location onboarding, pickup
   and destination entry, tariff selection, driver search, ride completion or
   cancellation, notifications and order history.

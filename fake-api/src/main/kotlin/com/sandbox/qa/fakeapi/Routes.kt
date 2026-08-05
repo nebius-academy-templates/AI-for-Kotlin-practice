@@ -21,15 +21,14 @@ import io.ktor.server.routing.routing
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The whole HTTP surface of the fake ride-hailing API.
  *
  * Auth is deliberately simple but real enough to test: a valid phone (at
  * least [SeedData.MIN_PHONE_DIGITS] digits) plus the valid OTP issue a bearer
- * token, and the data endpoints reject calls without one. Tokens live in
- * memory for the lifetime of the server process.
+ * token, and the data endpoints reject calls without one. Tokens are scoped
+ * to a backend session and live in memory for the server process lifetime.
  *
  * Sandbox states change what the data endpoints do (latency, HTTP 500, a
  * disabled tariff, no driver, an unavailable region). The control plane under /sandbox is
@@ -41,7 +40,6 @@ fun Application.fakeApiModule(
     network: NetworkSimulation = NetworkSimulation(),
     rideStore: RideStore = RideStore(),
 ) {
-    val issuedTokens: MutableSet<String> = ConcurrentHashMap.newKeySet()
     val sessions = BackendSessions(states, rideStore)
 
     install(ContentNegotiation) {
@@ -90,7 +88,7 @@ fun Application.fakeApiModule(
             if (body.phone.count { it.isDigit() } < SeedData.MIN_PHONE_DIGITS) {
                 call.respond(
                     HttpStatusCode.BadRequest,
-                    ErrorResponse("Phone number must contain at least ${SeedData.MIN_PHONE_DIGITS} digits"),
+                    ErrorResponse(SeedData.PHONE_VALIDATION_ERROR),
                 )
                 return@post
             }
@@ -99,6 +97,10 @@ fun Application.fakeApiModule(
 
         post("/auth/otp") {
             val body = call.receive<OtpRequest>()
+            if (body.phone.count { it.isDigit() } < SeedData.MIN_PHONE_DIGITS) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse(SeedData.PHONE_VALIDATION_ERROR))
+                return@post
+            }
             if (body.code != SeedData.VALID_OTP) {
                 // Same copy as the mobile UI error (WRONG_OTP_ERROR in the
                 // appium-tests test data): one product, one wording.
@@ -106,12 +108,12 @@ fun Application.fakeApiModule(
                 return@post
             }
             val token = "sandbox-${UUID.randomUUID()}"
-            issuedTokens.add(token)
+            call.backendSession(sessions).issuedTokens.add(token)
             call.respond(TokenResponse(token))
         }
 
         get("/rides/options") {
-            if (!call.requireToken(issuedTokens)) {
+            if (!call.requireToken(sessions)) {
                 return@get
             }
             val from = call.request.queryParameters["from"]
@@ -138,7 +140,7 @@ fun Application.fakeApiModule(
         }
 
         get("/rides/active") {
-            if (!call.requireToken(issuedTokens)) {
+            if (!call.requireToken(sessions)) {
                 return@get
             }
             val session = call.backendSession(sessions)
@@ -152,7 +154,7 @@ fun Application.fakeApiModule(
         }
 
         post("/rides") {
-            if (!call.requireToken(issuedTokens)) {
+            if (!call.requireToken(sessions)) {
                 return@post
             }
             val body = call.receive<CreateRideRequest>()
@@ -194,7 +196,7 @@ fun Application.fakeApiModule(
         }
 
         post("/rides/{id}/complete") {
-            if (!call.requireToken(issuedTokens)) {
+            if (!call.requireToken(sessions)) {
                 return@post
             }
             val session = call.backendSession(sessions)
@@ -209,7 +211,7 @@ fun Application.fakeApiModule(
         }
 
         post("/rides/{id}/cancel") {
-            if (!call.requireToken(issuedTokens)) {
+            if (!call.requireToken(sessions)) {
                 return@post
             }
             val session = call.backendSession(sessions)
@@ -224,7 +226,7 @@ fun Application.fakeApiModule(
         }
 
         get("/orders") {
-            if (!call.requireToken(issuedTokens)) {
+            if (!call.requireToken(sessions)) {
                 return@get
             }
             val session = call.backendSession(sessions)
@@ -233,7 +235,7 @@ fun Application.fakeApiModule(
         }
 
         post("/location/resolve") {
-            if (!call.requireToken(issuedTokens)) {
+            if (!call.requireToken(sessions)) {
                 return@post
             }
             val session = call.backendSession(sessions)
@@ -290,10 +292,10 @@ fun Application.fakeApiModule(
 private fun ApplicationCall.backendSession(sessions: BackendSessions): BackendSession =
     sessions.get(request.headers[BackendSessions.HEADER])
 
-private suspend fun ApplicationCall.requireToken(issuedTokens: Set<String>): Boolean {
+private suspend fun ApplicationCall.requireToken(sessions: BackendSessions): Boolean {
     val header = request.headers[HttpHeaders.Authorization]
     val token = header?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ")
-    if (token == null || token !in issuedTokens) {
+    if (token == null || token !in backendSession(sessions).issuedTokens) {
         respond(HttpStatusCode.Unauthorized, ErrorResponse("Missing or invalid token"))
         return false
     }

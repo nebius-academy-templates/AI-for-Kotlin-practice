@@ -5,6 +5,7 @@ import java.util.concurrent.ConcurrentHashMap
 data class BackendSession(
     val states: SandboxStates,
     val rides: RideStore,
+    val issuedTokens: MutableSet<String> = ConcurrentHashMap.newKeySet(),
 )
 
 /**

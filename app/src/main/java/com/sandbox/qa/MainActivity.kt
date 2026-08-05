@@ -1,17 +1,23 @@
 package com.sandbox.qa
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.sandbox.qa.ui.GeoOnboardingScreen
 import com.sandbox.qa.ui.MapScreen
 import com.sandbox.qa.ui.NotificationsScreen
@@ -30,14 +36,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Test entrance: UI tests launch the activity with the boolean intent
-        // extra "authenticated" set to true (adb: --ez authenticated true) to
-        // skip the auth flow and start directly on the map.
-        // A real user is remembered instead: the AuthStore flag is set at OTP
-        // success and survives restarts; the ConditionReceiver reset broadcast
-        // clears it, which the test base class sends after every test.
-        val authStore = (application as SandboxApplication).container.authStore
-        val authenticated = intent.getBooleanExtra(EXTRA_AUTHENTICATED, false) || authStore.isLoggedIn()
+        val container = (application as SandboxApplication).container
+        val testEntrance = intent.getBooleanExtra(EXTRA_AUTHENTICATED, false)
+        // Explicit Appium-only seam: skip the UI and allow the repository to
+        // issue the deterministic sandbox token after each test reset. A real
+        // user never receives this fallback and is signed in only by /auth/otp.
+        if (testEntrance) container.enableTestAuthentication()
+        val authenticated = testEntrance || container.authStore.isLoggedIn()
 
         setContent {
             SandboxTheme {
@@ -48,19 +53,34 @@ class MainActivity : ComponentActivity() {
                             .semantics { testTagsAsResourceId = true },
                 ) {
                     val navController = rememberNavController()
+                    val token by container.authStore.token.collectAsState()
+                    LaunchedEffect(token, testEntrance) {
+                        val currentRoute = navController.currentDestination?.route
+                        if (!testEntrance && token == null && currentRoute != null && currentRoute != "phone_login") {
+                            navController.navigate("phone_login") {
+                                popUpTo(navController.graph.id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
                     NavHost(
                         navController = navController,
                         startDestination = if (authenticated) "map" else "phone_login",
                     ) {
                         composable("phone_login") {
-                            PhoneLoginScreen(onContinue = { navController.navigate("otp") })
-                        }
-                        composable("otp") {
-                            OtpScreen(
-                                onSuccess = {
-                                    authStore.setLoggedIn(true)
-                                    navController.navigate("passkey")
+                            PhoneLoginScreen(
+                                onContinue = { phone ->
+                                    navController.navigate("otp/${Uri.encode(phone)}")
                                 },
+                            )
+                        }
+                        composable(
+                            route = "otp/{phone}",
+                            arguments = listOf(navArgument("phone") { type = NavType.StringType }),
+                        ) { backStackEntry ->
+                            OtpScreen(
+                                phone = backStackEntry.arguments?.getString("phone").orEmpty(),
+                                onSuccess = { navController.navigate("passkey") },
                             )
                         }
                         composable("passkey") {

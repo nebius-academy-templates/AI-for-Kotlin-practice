@@ -94,7 +94,8 @@ object MapActions {
 
     fun pullToRefresh() {
         Device.pullDownToRefresh()
-        MapPage.ridesLoading.waitFor()
+        // A normal refresh may finish before Appium observes its transient spinner.
+        // Callers assert the stable refreshed state; spinner coverage uses slow_backend_response.
         MapPage.ridesList.waitFor(20)
     }
 
