@@ -1,0 +1,10 @@
+{
+  "name": "ai-for-kotlin-practice-tooling",
+  "private": true,
+  "description": "Pins Appium, UiAutomator2 and Allure CLI for reproducible practice setup. Run 'npm ci' before using the local tools.",
+  "devDependencies": {
+    "allure-commandline": "2.43.0",
+    "appium": "2.16.2",
+    "appium-uiautomator2-driver": "3.9.8"
+  }
+}

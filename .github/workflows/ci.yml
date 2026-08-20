@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify Unix launcher permissions
+        run: |
+          test -x gradlew
+          for script in scripts/*.sh; do test -x "$script"; done
+
+      - name: Check agent skill synchronization
+        run: python scripts/sync_agent_skills.py --check
+
+      - name: Check Kotlin formatting
+        run: ./gradlew ktlintCheck
+
+      - name: Build both app flavors and run Android lint
+        run: ./gradlew :app:assembleDebug :app:lintStableDebug
+
+      - name: Start fake API and run API tests
+        run: |
+          ./gradlew :fake-api:run > fake-api.log 2>&1 &
+          fake_api_pid=$!
+          trap 'kill "$fake_api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 60); do
+            curl --fail --silent http://127.0.0.1:8080/swagger >/dev/null && break
+            if [ "$attempt" -eq 60 ]; then
+              echo "fake-api did not become ready"
+              cat fake-api.log
+              exit 1
+            fi
+            sleep 1
+          done
+          ./gradlew :api-tests:test --rerun
+
+      # Appium tests require the local API 36 emulator and Appium server.
+      - name: Compile Appium tests
+        run: ./gradlew :appium-tests:compileTestKotlin

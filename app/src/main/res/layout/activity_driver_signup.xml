@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Classic View-based screen, deliberately NOT Compose.
+     The android:id values below surface in UiAutomator2 as package-prefixed
+     resource-ids (com.sandbox.qa:id/driver_name_input etc.), unlike the
+     Compose testTag-based ids elsewhere in the app. That contrast is the
+     teaching point of this screen. Colors mirror the Compose palette via
+     values/colors.xml; the ids and strings are load-bearing for the tests. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/driver_back_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="-12dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/driver_signup_back"
+            android:padding="12dp"
+            android:src="@drawable/ic_arrow_back"
+            android:tint="@color/sandbox_on_background" />
+
+        <TextView
+            android:id="@+id/driver_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_weight="1"
+            android:text="@string/driver_signup_title"
+            android:textColor="@color/sandbox_on_background"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/driver_name_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:hint="@string/driver_signup_name_hint"
+        android:inputType="textPersonName" />
+
+    <EditText
+        android:id="@+id/driver_car_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="@string/driver_signup_car_hint"
+        android:inputType="textCapCharacters" />
+
+    <Button
+        android:id="@+id/driver_submit_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/driver_signup_submit"
+        android:textAllCaps="false"
+        android:textColor="@color/sandbox_on_lime"
+        android:backgroundTint="@color/sandbox_lime" />
+
+    <TextView
+        android:id="@+id/driver_error_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/driver_signup_error"
+        android:textColor="@color/sandbox_error"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/driver_success_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/driver_signup_success"
+        android:textColor="@color/sandbox_success"
+        android:visibility="gone" />
+
+</LinearLayout>

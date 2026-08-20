@@ -1,0 +1,20 @@
+# Normalize line endings so shell scripts survive Windows checkouts
+# (core.autocrlf=true would otherwise produce CRLF .sh files that fail
+# in Git Bash with: $'\r': command not found).
+* text=auto
+
+gradlew text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.kt text eol=lf
+*.kts text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+*.png binary
+*.jar binary
+*.apk binary

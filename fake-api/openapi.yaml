@@ -1,0 +1,668 @@
+openapi: 3.0.3
+info:
+  title: Sandbox Ride API
+  description: >-
+    Fake ride-hailing REST API of the ai-qa-sandbox training project. It is the
+    Deterministic HTTP backend used by the Android app and the API testing
+    track: same product domain, seed data and six controllable failure states.
+    Fully local, with no database or external services. Stateful endpoints
+    accept the optional `X-Sandbox-Session` header; different values isolate
+    sandbox states, active rides and order history.
+  version: 2.1.0
+servers:
+  - url: http://localhost:8080
+    description: Local server started with `./gradlew :fake-api:run`
+tags:
+  - name: auth
+    description: Phone plus OTP login, mirrors the mobile onboarding
+  - name: data
+    description: Ride options, ride lifecycle and order history; require a bearer token
+  - name: location
+    description: Deterministic location onboarding
+  - name: region
+    description: Region availability, mirrors the region banner in the app
+  - name: sandbox
+    description: >-
+      Control plane for the sandbox states. A testability seam, not product
+      surface; the HTTP counterpart of the app's adb broadcast. No auth.
+paths:
+  /auth/phone:
+    post:
+      tags: [auth]
+      summary: Submit a phone number to request an OTP
+      description: >-
+        The phone must contain at least 8 digits, any formatting characters
+        are ignored. No OTP is actually sent anywhere: the valid code is the
+        fixed sandbox value 1234.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneRequest'
+      responses:
+        '200':
+          description: OTP issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+              example: { status: otp_sent }
+        '400':
+          description: Phone has fewer than 8 digits or the body is malformed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/otp:
+    post:
+      tags: [auth]
+      summary: Exchange phone and OTP for a bearer token
+      description: >-
+        The phone must contain at least 8 digits and the only valid code is
+        1234. On a wrong code the error copy is "Invalid code", the same
+        wording the mobile UI shows. Issued tokens are scoped to the supplied
+        X-Sandbox-Session, live in server memory and expire on server restart.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpRequest'
+      responses:
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Wrong OTP code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: Invalid code }
+        '400':
+          description: Phone has fewer than 8 digits or the body is malformed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /rides/options:
+    get:
+      tags: [data]
+      summary: List ride options for a route
+      description: >-
+        Returns the three seeded tariffs in euro cents: Yellow 2970,
+        Turquoise 3454, Minivan 3905. The mobile UI formats these as 29.70 €,
+        34.54 € and 39.05 €. When car_unavailable is enabled the Minivan tariff
+        (id 3) stays in the response with available=false. Affected by the
+        latency and error states.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SandboxSession'
+        - name: from
+          in: query
+          required: true
+          schema: { type: string }
+          example: Oak Avenue
+        - name: to
+          in: query
+          required: true
+          schema: { type: string }
+          example: Market Street
+      responses:
+        '200':
+          description: Ride options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RideOptionsResponse'
+        '400':
+          description: Missing from or to
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: backend_error state is enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: Internal Server Error }
+  /rides/active:
+    get:
+      tags: [data]
+      summary: Get the active ride for this sandbox session
+      description: >-
+        Returns the one active ride for the sandbox session. Closing or
+        restarting a client does not cancel a ride and there is no automatic
+        expiry or TTL. Only complete, cancel and sandbox reset release the
+        active slot. Affected by the latency and error states.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SandboxSession'
+      responses:
+        '200':
+          description: Active ride
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveRide'
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: This sandbox session has no active ride
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: No active ride }
+        '500':
+          description: backend_error state is enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /rides:
+    post:
+      tags: [data]
+      summary: Order a ride and find a driver
+      description: >-
+        Creates a deterministic demo ride. The simulated network delay represents
+        driver search; a successful response has status driver_found. A sandbox
+        session can have only one active ride. Closing a client does not release
+        that slot; only complete, cancel and sandbox reset do. When
+        driver_not_found is enabled, the search finishes with HTTP 409 and does
+        not create an active ride.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SandboxSession'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRideRequest'
+      responses:
+        '201':
+          description: Driver found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveRide'
+        '400':
+          description: Invalid route or ride option
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: >-
+            For a valid route and known tariff, conflict precedence is
+            region_unavailable, then an existing active ride, then
+            car_unavailable, then driver_not_found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                activeRideExists:
+                  value:
+                    error: An active ride already exists
+                    code: ACTIVE_RIDE_EXISTS
+                noDriver:
+                  value: { error: No cars found for this route }
+        '500':
+          description: backend_error state is enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /rides/{id}/complete:
+    post:
+      tags: [data]
+      summary: Complete an active ride
+      description: Completes the ride and prepends it to order history.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SandboxSession'
+        - $ref: '#/components/parameters/RideId'
+      responses:
+        '200':
+          description: Ride completed and history entry created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RideCompletionResponse'
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Ride is missing or not active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: backend_error state is enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /rides/{id}/cancel:
+    post:
+      tags: [data]
+      summary: Cancel an active ride
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SandboxSession'
+        - $ref: '#/components/parameters/RideId'
+      responses:
+        '200':
+          description: Ride cancelled; no history entry is created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveRide'
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Ride is missing or not active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: backend_error state is enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /orders:
+    get:
+      tags: [data]
+      summary: Order history
+      description: >-
+        Returns the three seeded past orders with euro-cent prices 2970, 1450
+        and 980 (displayed as 29.70 €, 14.50 € and 9.80 € in the app).
+        Affected by the latency and error states.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Past orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrdersResponse'
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: backend_error state is enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /region/status:
+    parameters:
+      - $ref: '#/components/parameters/SandboxSession'
+    get:
+      tags: [region]
+      summary: Region availability
+      description: >-
+        Reports whether the service region is available. Flips to false while
+        the region_unavailable state is enabled. Reads the state registry
+        directly and is not affected by the latency and error states, the same
+        way the region banner in the app renders straight from the state
+        registry without a backend call. No auth required.
+      responses:
+        '200':
+          description: Region status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegionStatus'
+  /location/resolve:
+    parameters:
+      - $ref: '#/components/parameters/SandboxSession'
+    post:
+      tags: [location]
+      summary: Resolve the deterministic current location
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SandboxSession'
+      responses:
+        '200':
+          description: Current location resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationResponse'
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: backend_error state is enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /sandbox/state:
+    parameters:
+      - $ref: '#/components/parameters/SandboxSession'
+    get:
+      tags: [sandbox]
+      summary: Snapshot of all sandbox states
+      responses:
+        '200':
+          description: Map of state id to enabled flag, all six ids always present
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxSnapshot'
+    post:
+      tags: [sandbox]
+      summary: Enable or disable one sandbox state
+      description: >-
+        Unlike the adb broadcast in the mobile app, which returns result=0
+        even for an unknown state id, this endpoint rejects unknown ids with
+        400. A 200 response still only means the flag flipped: verifying the
+        observable effect on the data endpoints is the caller's job.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SandboxStateRequest'
+      responses:
+        '200':
+          description: State toggled, the request is echoed back
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxStateRequest'
+        '400':
+          description: Unknown state id or malformed body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /sandbox/reset:
+    parameters:
+      - $ref: '#/components/parameters/SandboxSession'
+    post:
+      tags: [sandbox]
+      summary: Reset sandbox states and product data
+      description: >-
+        Disables all six states, clears active rides and restores the three
+        seeded order-history entries for this sandbox session. Issued tokens
+        remain valid; this control-plane reset is not a logout operation.
+      responses:
+        '200':
+          description: States disabled and ride data restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+              example: { status: reset }
+  /sandbox/state/snapshot:
+    parameters:
+      - $ref: '#/components/parameters/SandboxSession'
+    post:
+      tags: [sandbox]
+      summary: Replace the full sandbox-state snapshot
+      description: Used by the Android app to synchronize its adb-controlled state before a data call.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SandboxSnapshot'
+      responses:
+        '200':
+          description: Snapshot replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxSnapshot'
+        '400':
+          description: Snapshot does not contain exactly the six known state ids
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Token issued by POST /auth/otp
+  parameters:
+    SandboxSession:
+      name: X-Sandbox-Session
+      in: header
+      required: false
+      description: >-
+        Session key for isolated bearer tokens, sandbox states, active rides
+        and order history. Omit it to use the shared default session.
+      schema:
+        type: string
+        minLength: 1
+      example: swagger
+    RideId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      example: 100
+  schemas:
+    PhoneRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          example: '+381 64 123 45 67'
+    OtpRequest:
+      type: object
+      required: [phone, code]
+      properties:
+        phone:
+          type: string
+          example: '+381 64 123 45 67'
+        code:
+          type: string
+          example: '1234'
+    TokenResponse:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          example: sandbox-6f6f3a52-8a53-4d1e-9a3d-0c1f6f3a528a
+    StatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: otp_sent
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: Invalid code
+        code:
+          type: string
+          description: Stable machine-readable reason when the client must branch on a specific error
+          example: ACTIVE_RIDE_EXISTS
+    RideOption:
+      type: object
+      required: [id, name, seats, price, category, available]
+      properties:
+        id: { type: integer, example: 1 }
+        name: { type: string, example: Yellow }
+        available: { type: boolean, example: true, description: "false while the car_unavailable sandbox state marks this tariff as not offered; the row itself stays in the list" }
+        seats: { type: integer, example: 4 }
+        price:
+          type: integer
+          description: Integer euro cents on the wire; currency formatting is a UI concern
+          example: 2970
+        category: { type: string, example: Official taxi }
+    Driver:
+      type: object
+      required: [name, car, plate, etaMinutes]
+      properties:
+        name: { type: string, example: Alex Morgan }
+        car: { type: string, example: Toyota Corolla }
+        plate: { type: string, example: QA 1234 }
+        etaMinutes: { type: integer, example: 4 }
+    CreateRideRequest:
+      type: object
+      required: [from, to, rideOptionId]
+      properties:
+        from: { type: string, minLength: 1, example: Oak Avenue }
+        to: { type: string, minLength: 1, example: Market Street }
+        rideOptionId: { type: integer, example: 1 }
+    ActiveRide:
+      type: object
+      required: [id, status, from, to, option, driver]
+      properties:
+        id: { type: integer, example: 100 }
+        status:
+          type: string
+          enum: [driver_found, completed, cancelled]
+          example: driver_found
+        from: { type: string, example: Oak Avenue }
+        to: { type: string, example: Market Street }
+        option:
+          $ref: '#/components/schemas/RideOption'
+        driver:
+          $ref: '#/components/schemas/Driver'
+    RideCompletionResponse:
+      type: object
+      required: [ride, order]
+      properties:
+        ride:
+          $ref: '#/components/schemas/ActiveRide'
+        order:
+          $ref: '#/components/schemas/Order'
+    LocationResponse:
+      type: object
+      required: [location]
+      properties:
+        location: { type: string, example: Oak Avenue }
+    Order:
+      type: object
+      required: [id, date, from, to, price]
+      properties:
+        id: { type: integer, example: 1 }
+        date: { type: string, example: 'June 12, 22:55' }
+        from: { type: string, example: Oak Avenue }
+        to: { type: string, example: Market Street }
+        price: { type: integer, description: Integer euro cents, example: 2970 }
+    RideOptionsResponse:
+      type: object
+      required: [options]
+      properties:
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/RideOption'
+    OrdersResponse:
+      type: object
+      required: [orders]
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+    RegionStatus:
+      type: object
+      required: [available]
+      properties:
+        available:
+          type: boolean
+          example: true
+    SandboxStateRequest:
+      type: object
+      required: [condition, enabled]
+      properties:
+        condition:
+          type: string
+          enum:
+            - slow_backend_response
+            - backend_error
+            - car_unavailable
+            - driver_not_found
+            - intermittent_backend_delay
+            - region_unavailable
+        enabled:
+          type: boolean
+    SandboxSnapshot:
+      type: object
+      description: All six state ids mapped to their enabled flag
+      required:
+        - slow_backend_response
+        - backend_error
+        - car_unavailable
+        - driver_not_found
+        - intermittent_backend_delay
+        - region_unavailable
+      additionalProperties: false
+      properties:
+        slow_backend_response: { type: boolean }
+        backend_error: { type: boolean }
+        car_unavailable: { type: boolean }
+        driver_not_found: { type: boolean }
+        intermittent_backend_delay: { type: boolean }
+        region_unavailable: { type: boolean }
+      example:
+        slow_backend_response: false
+        backend_error: false
+        car_unavailable: false
+        driver_not_found: false
+        intermittent_backend_delay: false
+        region_unavailable: false

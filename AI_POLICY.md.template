@@ -1,0 +1,50 @@
+# AI Policy
+
+Version: 0.1, week-1 draft. Owner: [TODO: your name].
+Scope: this repository, including the Appium and API test suites. Applies to any AI agent, such as Claude Code, Cursor, or Codex, and to any human applying an AI-generated diff.
+
+Ground rule: every line below must be backed by something observed in this repo, and every rule must name how its violation is detected. A rule whose violation cannot be detected is not a rule, it is a wish.
+
+## Allowed changes
+
+What the agent may generate or modify, and the proof required before the change is accepted.
+
+| Allowed change | Condition: proof required | How a violation is detected |
+|---|---|---|
+| New tests, page objects, and actions under `appium-tests/src` | Output of a local OS-specific repository runner (`run-suite.ps1` or `run-suite.sh`) attached to the PR | Reviewer rejects missing, cached, red, or 0-test run output |
+| New clients, models, test data, and tests under `api-tests/src` | `fake-api` is running and a fresh `:api-tests:test --rerun` result shows a non-zero test count with zero failures | Reviewer rejects missing, red, connection-failed, or 0-test run output |
+| [TODO: another allowed change] | [TODO: what proof is required] | [TODO: grep / PR diff / CI check / review step] |
+
+## Forbidden changes
+
+What the agent must never touch, even when it would make the suite green.
+
+| Forbidden change | Why it is forbidden | How a violation is detected |
+|---|---|---|
+| Editing `app/` or `fake-api/`, the systems under test, to make a test pass | The test goes green because the observed product changed, not because the test was fixed: it masks a regression | Diff review exposes a test-fix change that also touches `app/` or `fake-api/`; the agent must stop and report it |
+| [TODO: editing CI workflow files under `.github/workflows/`] | [TODO] | [TODO] |
+| [TODO: another forbidden change] | [TODO] | [TODO] |
+
+## Human gates
+
+Actions that always require an explicit human decision, no matter how confident the agent is.
+
+- Merging any PR: a human reviews the diff and the attached local run output before merge.
+- [TODO: another gate]
+- [TODO: another gate]
+
+## Stop conditions
+
+Situations where the agent must stop and report instead of continuing to push for green.
+
+- The fix requires editing a system under test, `app/` or `fake-api/`: stop and report the suspected product bug instead of patching around it.
+- [TODO: another stop condition]
+- [TODO: another stop condition]
+
+## Safe failure modes
+
+What failing well looks like. When in doubt, prefer a loud red over a quiet green.
+
+- If the relevant suite cannot run because the emulator, Appium server, or `fake-api` is unavailable, report `blocked`, never `done`; a claim without the required fresh run is unverified.
+- [TODO: another safe failure mode]
+- [TODO: another safe failure mode]

@@ -1,0 +1,71 @@
+# Suite baseline report
+
+Date: [TODO]
+
+## Environment
+
+| Item | Value |
+|---|---|
+| OS and version | [TODO] |
+| Emulator: AVD name and API level | [TODO] |
+| Appium server version | [TODO: from npx --no-install appium --version] |
+
+## Source state
+
+| Item | Value |
+|---|---|
+| Repository revision | [TODO: output of git rev-parse --short HEAD] |
+| Working tree | [TODO: clean, or summarize relevant uncommitted code/test changes] |
+
+## App build variant
+
+[TODO: stable or redesign. stable is the default; only say redesign if you ran with FLAVOR=redesign.]
+
+## Command used
+
+```
+[TODO: the exact Appium suite command you ran, e.g. .\scripts\run-suite.ps1 on Windows or ./scripts/run-suite.sh on macOS/Linux]
+```
+
+```
+[TODO: the API suite commands you ran, e.g. ./gradlew :fake-api:run in one terminal and ./gradlew :api-tests:test --rerun in another]
+```
+
+## Results: Appium suite
+
+| Total | Passed | Failed | Skipped |
+|---|---|---|---|
+| [TODO] | [TODO] | [TODO] | [TODO] |
+
+Total must equal passed + failed + skipped. In the Week 1 starter that is 6 Appium tests, passing.
+
+Duration: [TODO: duration shown in the completed Appium Allure report]
+
+## Results: API suite
+
+| Total | Passed | Failed | Skipped |
+|---|---|---|---|
+| [TODO] | [TODO] | [TODO] | [TODO] |
+
+In the Week 1 starter that is 4 API tests, passing, with fake-api running locally.
+
+Duration: [TODO: duration shown in the completed API Allure report]
+
+## Allure sources
+
+- Appium report: [TODO: path to the generated Appium Allure report]
+- API report: [TODO: path to the generated API Allure report]
+
+## Cross-suite overview
+
+- UI coverage visible in the report: [TODO: concise summary]
+- API coverage visible in the report: [TODO: concise summary]
+- Failures, skips, or slow-test observations: [TODO: concise summary; write "None in this run" if there were none]
+
+## Known issues and flaky observations
+
+[TODO: anything that behaved unstably in either run; write "None in this run" if there were no such observations.]
+
+## Next action
+
+[TODO: one concrete follow-up this baseline suggests, e.g. a screen with no coverage, a slow test worth profiling, an environment issue to fix.]
