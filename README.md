@@ -11,6 +11,7 @@ in `fake-api/`.
 | `app/` | Android application under test, with stable and redesign flavors |
 | `appium-tests/` | Kotlin, JUnit 5 and Appium UI automation |
 | `api-tests/` | Kotlin, JUnit 5 and REST Assured API automation |
+| `agent_docs/` | Repository context for build commands, test architecture and page-object conventions |
 | `fake-api/` | Local backend, OpenAPI contract and Swagger UI |
 | `scripts/` | Environment setup and sequential Appium runners |
 
