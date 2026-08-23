@@ -1,6 +1,16 @@
 # Test architecture
 
-Drafted by an AI agent, verified by a human. Every layer and path below must match the actual code under appium-tests/src/test/kotlin/.
+<!-- Agent drafting scope:
+Read AGENTS.md first. Then inspect appium-tests/README.md and the current sources
+under appium-tests/src/test/kotlin/rule/, pages/, actions/, tests/ and testdata/.
+
+Fill only this file. Keep its existing headings. Map claims to real source paths,
+avoid duplicating volatile test inventory, and mark anything you cannot confirm
+as UNVERIFIED. Do not modify other files.
+-->
+
+This document starts as an AI draft. Verify every claim against the repository
+before relying on it.
 
 ## Layers
 

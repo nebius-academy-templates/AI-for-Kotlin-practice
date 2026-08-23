@@ -1,6 +1,17 @@
 # Page object model
 
-Drafted by an AI agent, verified by a human. The example sections must quote real classes from this repo, not invented ones.
+<!-- Agent drafting scope:
+Read AGENTS.md first. Then inspect appium-tests/src/test/kotlin/pages/Element.kt,
+at least three current page objects, and the action classes that use them.
+
+Fill only this file. Keep its existing headings. Describe conventions only when
+repository rules and current code support them. Compare how Element operations
+locate and wait for elements, including exceptions. Quote real declarations,
+and mark anything you cannot confirm as UNVERIFIED. Do not modify other files.
+-->
+
+This document starts as an AI draft. Verify every claim against the repository
+before relying on it.
 
 ## Role of pages
 

@@ -1,6 +1,16 @@
 # Building the project
 
-Drafted by an AI agent, verified by a human. Do not trust a command below until you have run it yourself from the repo root.
+<!-- Agent drafting scope:
+Read AGENTS.md first. Then inspect package.json, the root Gradle build files,
+module READMEs and the OS-specific scripts under scripts/.
+
+Fill only this file. Keep its existing headings. Cite the repository source for
+every command, mark anything you cannot confirm as UNVERIFIED, and do not invent
+execution results. Do not modify other files.
+-->
+
+This document starts as an AI draft. Verify every claim against the repository
+before relying on it.
 
 ## Prerequisites
 
