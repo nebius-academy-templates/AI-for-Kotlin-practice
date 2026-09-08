@@ -17,6 +17,35 @@ dependencies {
     testImplementation("io.qameta.allure:allure-junit5:2.29.0")
 }
 
+val digestTest by sourceSets.creating {
+    kotlin.srcDir("src/digestTest/kotlin")
+    compileClasspath += sourceSets.test.get().output
+    runtimeClasspath += output + compileClasspath
+}
+
+configurations[digestTest.implementationConfigurationName]
+    .extendsFrom(configurations.testImplementation.get())
+configurations[digestTest.runtimeOnlyConfigurationName]
+    .extendsFrom(configurations.testRuntimeOnly.get())
+
+val failureDigestTest by tasks.registering(Test::class) {
+    group = "verification"
+    description = "Runs the FailureDigest logcat unit tests without starting Appium."
+    testClassesDirs = digestTest.output.classesDirs
+    classpath = digestTest.runtimeClasspath
+    systemProperty(
+        "allure.results.directory",
+        layout.buildDirectory
+            .dir("allure-results/failure-digest")
+            .get()
+            .asFile.absolutePath,
+    )
+    useJUnitPlatform()
+    testLogging {
+        events("passed", "failed", "skipped")
+    }
+}
+
 tasks.test {
     useJUnitPlatform()
     systemProperty(
@@ -121,5 +150,5 @@ val checkPageObjectBoundary by tasks.registering {
 }
 
 tasks.named("check") {
-    dependsOn(checkPageObjectBoundary)
+    dependsOn(checkPageObjectBoundary, failureDigestTest)
 }

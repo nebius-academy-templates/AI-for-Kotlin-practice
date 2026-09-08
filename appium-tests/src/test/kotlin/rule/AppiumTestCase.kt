@@ -38,7 +38,7 @@ import java.io.ByteArrayInputStream
  *   steps + checks (asserts live here); testcases = the action sequence.
  * - Waits and retries live on Element (waitFor / waitForGone / retryClick);
  *   device-level primitives live on Device.
- * - Failure artifacts (screenshot + logcat + page source) come from
+ * - Failure artifacts (logcat + screenshot + page source) come from
  *   ArtifactsOnFailure; FailureDigest condenses them into one small
  *   build/reports/digests/test_log_{method}_{try}.txt per failure. The artifact
  *   exception handler runs before the digest's after-test-execution callback,
@@ -100,10 +100,9 @@ abstract class AppiumTestCase {
     }
 
     /**
-     * Wraps [body] as a named Allure step and attaches the screen state reached by
-     * that step. The attachment makes successful steps inspectable in the HTML
-     * report; failure-only logcat and page source remain the responsibility of
-     * [ArtifactsOnFailure].
+     * Wraps [body] as a named Allure step and attaches the screen state reached
+     * after a successful step. [ArtifactsOnFailure] owns the screenshot, logcat,
+     * and page source when the step throws.
      */
     protected fun step(
         name: String,
@@ -111,11 +110,8 @@ abstract class AppiumTestCase {
     ) = Allure.step(
         name,
         Allure.ThrowableRunnableVoid {
-            try {
-                body()
-            } finally {
-                attachScreenState()
-            }
+            body()
+            attachScreenState()
         },
     )
 
