@@ -9,7 +9,7 @@ import java.io.File
 import java.nio.charset.StandardCharsets
 
 /**
- * On a FAILED test, captures a screenshot, the device logcat, and the UI page
+ * On a FAILED test, captures the device logcat, a screenshot, and the UI page
  * source so a red run leaves evidence to triage from instead of just a stacktrace.
  * Every artifact is both saved as a raw file and attached to the failed Allure
  * test, so it is available from the report without browsing the build directory.
@@ -46,17 +46,8 @@ class ArtifactsOnFailure : TestExecutionExceptionHandler {
         val name = "$base-${System.currentTimeMillis()}"
         val savedFiles = mutableListOf<String>()
 
-        capture(
-            label = "screenshot",
-            file = File(dir, "$name.png"),
-            attachmentName = "Failure screenshot",
-            mediaType = "image/png",
-            extension = ".png",
-            savedFiles = savedFiles,
-        ) {
-            driver.getScreenshotAs(OutputType.BYTES)
-        }
-
+        // Read logcat first because Appium logs the screenshot response itself,
+        // including the full base64 PNG payload, before it drains the buffer.
         capture(
             label = "logcat",
             file = File(dir, "$name.logcat"),
@@ -72,6 +63,17 @@ class ArtifactsOnFailure : TestExecutionExceptionHandler {
                 .all
                 .joinToString("\n") { it.message }
                 .toByteArray(StandardCharsets.UTF_8)
+        }
+
+        capture(
+            label = "screenshot",
+            file = File(dir, "$name.png"),
+            attachmentName = "Failure screenshot",
+            mediaType = "image/png",
+            extension = ".png",
+            savedFiles = savedFiles,
+        ) {
+            driver.getScreenshotAs(OutputType.BYTES)
         }
 
         capture(

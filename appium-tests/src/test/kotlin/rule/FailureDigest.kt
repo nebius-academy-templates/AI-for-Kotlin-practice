@@ -2,6 +2,7 @@ package rule
 
 import org.junit.jupiter.api.extension.AfterTestExecutionCallback
 import org.junit.jupiter.api.extension.ExtensionContext
+import org.openqa.selenium.json.Json
 import java.io.File
 
 /**
@@ -27,7 +28,7 @@ class FailureDigest : AfterTestExecutionCallback {
                 appendLine("display : ${context.displayName}")
                 appendLine("class   : ${context.testClass.map { it.name }.orElse("?")}")
                 appendLine()
-                appendLine("FAILURE : $failure")
+                appendLine("FAILURE : ${FailureDigestFormatter.failure(failure)}")
                 appendLine()
                 appendLine("--- project stack frames ---")
                 appendLine(projectFrames(failure))
@@ -125,38 +126,147 @@ class FailureDigest : AfterTestExecutionCallback {
     private fun logcatSlice(logcatFile: File?): String {
         if (logcatFile == null) return "(no logcat: ArtifactsOnFailure left no file for this test)"
 
-        val lines = logcatFile.readLines()
-        // Anchor only on a crash of the app under test: the uiautomator2
-        // server also dies with a FATAL EXCEPTION on session teardown, and
-        // that line is exactly the loud-but-irrelevant kind. The crashing
-        // process is named on the log line right below the FATAL header.
-        val fatalAt =
-            lines.indices.lastOrNull { i ->
-                lines[i].contains("FATAL EXCEPTION") &&
-                    lines.getOrNull(i + 1)?.contains("Process: com.sandbox.qa") == true
-            } ?: -1
-        val slice =
-            if (fatalAt >= 0) {
-                lines.drop(fatalAt).take(MAX_LOGCAT_LINES)
-            } else {
-                lines.takeLast(TAIL_LOGCAT_LINES)
-            }
-        // Cap the line length: Appium echoes response payloads (base64
-        // screenshots) into logcat, and those characters explain nothing.
-        return slice.joinToString("\n") {
-            if (it.length > MAX_LINE_CHARS) it.take(MAX_LINE_CHARS) + " …[truncated]" else it
-        }
-    }
-
-    private companion object {
-        const val MAX_LOGCAT_LINES = 120
-        const val TAIL_LOGCAT_LINES = 40
-        const val MAX_LINE_CHARS = 240
+        return FailureDigestFormatter.logcatSlice(logcatFile.readLines())
     }
 
     private data class FailureArtifacts(
         val screenshot: File? = null,
         val logcat: File? = null,
         val pageSource: File? = null,
+    )
+}
+
+/** Formats compact digest details without discarding the original evidence. */
+object FailureDigestFormatter {
+    private const val MAX_LOGCAT_LINES = 120
+    private const val TAIL_LOGCAT_LINES = 40
+    private const val MAX_LINE_CHARS = 240
+    private const val APPIUM_RESPONSE = "AppiumResponse:"
+    private const val PNG_BASE64_PREFIX = "iVBOR"
+    private const val TRUNCATION_MARKER = " …[truncated middle]… "
+    private val pngScreenshotValue = Regex("\"value\"\\s*:\\s*\"$PNG_BASE64_PREFIX")
+    private val findElement = Regex("""method:\s*'([^']+)',\s*selector:\s*'([^']+)'""")
+    private val verboseOrDebug = Regex("""^\S+\s+\S+\s+\d+\s+\d+\s+[VD]\s+""")
+
+    fun failure(failure: Throwable): String {
+        val type = failure.javaClass.simpleName.ifBlank { failure.javaClass.name }
+        val message =
+            failure.message
+                ?.lineSequence()
+                ?.map(String::trim)
+                ?.firstOrNull(String::isNotEmpty)
+        return if (message == null) type else "$type: $message"
+    }
+
+    fun logcatSlice(lines: List<String>): String {
+        // Anchor only on a crash of the app under test: the uiautomator2
+        // server also dies with a FATAL EXCEPTION on session teardown, and
+        // that line is exactly the loud-but-irrelevant kind. The crashing
+        // process is named on the log line right below the FATAL header.
+        val fatalAt =
+            lines.indices.lastOrNull { index ->
+                lines[index].contains("FATAL EXCEPTION") &&
+                    lines.getOrNull(index + 1)?.contains("Process: com.sandbox.qa") == true
+            } ?: -1
+        val selected =
+            if (fatalAt >= 0) {
+                lines.drop(fatalAt).take(MAX_LOGCAT_LINES)
+            } else {
+                lines.takeLast(TAIL_LOGCAT_LINES)
+            }
+
+        val summarized = selected.mapNotNull(::summarize)
+        val repetitions =
+            summarized
+                .mapNotNull(SummarizedLine::deduplicationKey)
+                .groupingBy { it }
+                .eachCount()
+        val emitted = mutableSetOf<String>()
+
+        return summarized
+            .mapNotNull { line ->
+                val key = line.deduplicationKey
+                if (key != null && !emitted.add(key)) return@mapNotNull null
+
+                val count = key?.let(repetitions::get) ?: 0
+                val suffix = if (count > 1) " [repeated $count times]" else ""
+                truncateMiddle(line.text + suffix)
+            }.joinToString("\n")
+    }
+
+    private fun summarize(line: String): SummarizedLine? {
+        val find = findElement.find(line)
+        if (find != null) {
+            val method = find.groupValues[1]
+            val selector = find.groupValues[2]
+            return SummarizedLine(
+                text = "Appium find: $method=$selector",
+                deduplicationKey = "appium-find:$method:$selector",
+            )
+        }
+        if (isFindElementNoise(line)) return null
+        if (isExternalVerboseOrDebug(line)) return null
+
+        val markerAt = line.indexOf(APPIUM_RESPONSE)
+        if (markerAt < 0) return SummarizedLine(line)
+
+        val payload = line.substring(markerAt + APPIUM_RESPONSE.length).trim()
+        if (pngScreenshotValue.containsMatchIn(payload)) return null
+
+        val response =
+            runCatching {
+                Json().toType<Map<String, Any?>>(payload, Json.MAP_TYPE)
+            }.getOrNull()
+        val value = response?.get("value")
+        val details = (value as? Map<*, *>) ?: response
+        val error = details?.get("error") as? String
+        if (error != null) {
+            val message =
+                (details["message"] as? String)
+                    ?.replace(Regex("\\s+"), " ")
+                    ?.trim()
+            val text =
+                if (message.isNullOrBlank()) {
+                    "Appium error: $error"
+                } else {
+                    "Appium error: $error — $message"
+                }
+            return SummarizedLine(
+                text = text,
+                deduplicationKey = "appium-error:$error:$message",
+            )
+        }
+
+        return SummarizedLine(
+            text = line,
+            deduplicationKey = "appium-response:$payload",
+        )
+    }
+
+    private fun isFindElementNoise(line: String): Boolean {
+        if (!line.contains("appium", ignoreCase = true)) return false
+
+        return line.contains("FindElement command") ||
+            (line.contains("Waiting up to") && line.contains("for the device to idle")) ||
+            (line.contains("channel read: POST /session/") && line.trimEnd().endsWith("/element"))
+    }
+
+    private fun isExternalVerboseOrDebug(line: String): Boolean =
+        verboseOrDebug.containsMatchIn(line) &&
+            !line.contains("appium", ignoreCase = true) &&
+            !line.contains("com.sandbox.qa")
+
+    private fun truncateMiddle(line: String): String {
+        if (line.length <= MAX_LINE_CHARS) return line
+
+        val available = MAX_LINE_CHARS - TRUNCATION_MARKER.length
+        val headLength = available * 2 / 3
+        val tailLength = available - headLength
+        return line.take(headLength) + TRUNCATION_MARKER + line.takeLast(tailLength)
+    }
+
+    private data class SummarizedLine(
+        val text: String,
+        val deduplicationKey: String? = null,
     )
 }
